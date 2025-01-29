@@ -1,3 +1,8 @@
+use egui::{epaint, Color32, CursorIcon, Pos2, TextureHandle, Vec2};
+use egui_extras::{Column, TableBuilder};
+use egui_plot::{PlotBounds, PlotImage, PlotPoint};
+use image::DynamicImage;
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -7,6 +12,24 @@ pub struct TemplateApp {
 
     #[serde(skip)] // This how you opt-out of serialization of a field
     value: f32,
+
+    #[serde(skip)]
+    threshold: i16,
+
+    #[serde(skip)]
+    minimal_pore_size: i16,
+
+    #[serde(skip)]
+    selected_area: Option<PlotBounds>,
+
+    #[serde(skip)]
+    selected_texture_handle: Option<TextureHandle>,
+
+    #[serde(skip)]
+    region_selector_start: Option<Pos2>,
+
+    #[serde(skip)]
+    region_selector_end: Option<Pos2>,
 }
 
 impl Default for TemplateApp {
@@ -15,8 +38,27 @@ impl Default for TemplateApp {
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
+            threshold: 0,
+            minimal_pore_size: 0,
+            selected_area: None,
+            selected_texture_handle: None,
+            region_selector_start: None,
+            region_selector_end: None,
         }
     }
+}
+
+fn load_texture(ctx: &egui::Context, image: &DynamicImage) -> TextureHandle {
+    let rgba_image = image.to_rgba8();
+    let size = [image.width() as _, image.height() as _];
+    let pixels: &[u8] = &rgba_image.into_raw();
+
+    let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels);
+    ctx.load_texture(
+        "dynamic_image",
+        color_image,
+        egui::TextureOptions::default(),
+    )
 }
 
 impl TemplateApp {
@@ -27,12 +69,46 @@ impl TemplateApp {
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        }
+        // if let Some(storage) = cc.storage {
+        //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+        // }
 
-        Default::default()
+        let image = image::open("assets/example_image.png").unwrap();
+        let texture_handle = Some(load_texture(&cc.egui_ctx, &image));
+
+        Self {
+            selected_texture_handle: texture_handle,
+            ..Default::default()
+        }
     }
+
+    // pub fn set_image(&mut self, ctx: &egui::Context) {
+    //     let image = image::ImageReader::open("assets/example_image.png")
+    //         .unwrap()
+    //         .decode()
+    //         .unwrap();
+
+    //     // let grayscale = image.grayscale().to_luma8();
+    //     // let grayscale_thresh = threshold(
+    //     //     &grayscale,
+    //     //     self.threshold.try_into().unwrap(),
+    //     //     imageproc::contrast::ThresholdType::Binary,
+    //     // );
+
+    //     // let rgba_image = DynamicImage::ImageLuma8(grayscale_thresh).to_rgba8();
+    //     // let size = [image.width() as _, image.height() as _];
+    //     // let pixels: &[u8] = image.as_flat_samples_u8().unwrap().samples;
+
+    //     // let texture_handle = egui::Context::load_texture(
+    //     //     ctx,
+    //     //     "selected_image_texture",
+    //     //     egui::ColorImage::from_rgba_unmultiplied(size, pixels),
+    //     //     Default::default(),
+    //     // );
+
+    //     // self.selected_texture_handle = Some(texture_handle);
+    //     log::info!("Loaded texture");
+    // }
 }
 
 impl eframe::App for TemplateApp {
@@ -45,6 +121,10 @@ impl eframe::App for TemplateApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
+
+        // if self.selected_texture_handle.is_none() {
+        //     self.set_image(ctx);
+        // }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -65,45 +145,182 @@ impl eframe::App for TemplateApp {
             });
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
+        // create floating window
+        egui::Window::new("floating_window").show(ctx, |ui| {
+            ui.heading("Options");
 
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
-            });
+            TableBuilder::new(ui)
+                .column(Column::initial(100.0))
+                .column(Column::remainder())
+                .header(20.0, |mut header| {
+                    header.col(|ui| {
+                        ui.heading("Name");
+                    });
+                    header.col(|ui| {
+                        ui.heading("Value");
+                    });
+                })
+                .body(|mut body| {
+                    body.row(30.0, |mut row| {
+                        row.col(|ui| {
+                            ui.label("Threshold");
+                        });
+                        row.col(|ui| {
+                            let response = ui
+                                .add(egui::Slider::new(&mut self.threshold, 0..=255).step_by(1.0));
 
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
+                            if response.changed() {
+                                // [TODO]: change image threshold here
+                                log::info!("Threshold changed to {}", self.threshold);
+                            }
+                        });
+                    });
+                    body.row(30.0, |mut row| {
+                        row.col(|ui| {
+                            ui.label("Minimal Pore Size");
+                        });
+                        row.col(|ui| {
+                            ui.add(egui::Slider::new(&mut self.minimal_pore_size, 0..=250));
+                        });
+                    });
+                });
+
+            if ui.button("Select Region").clicked() {
+                log::info!("Select Region");
+            }
+
+            if ui.button("Apply to Batch").clicked() {
+                log::info!("Apply to Batch");
+            }
+
+            if ui.button("Download Results").clicked() {
+                log::info!("Download Results");
             }
 
             ui.separator();
 
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
+            ui.heading("Image List");
+        });
 
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
-            });
+        // egui::SidePanel::left("my_side_panel")
+        //     .exact_width(400.0)
+        //     .resizable(false)
+        //     .show(ctx, |ui| {
+        //         ui.heading("Options");
+
+        //         TableBuilder::new(ui)
+        //             .column(Column::exact(100.0))
+        //             .column(Column::remainder())
+        //             .header(20.0, |mut header| {
+        //                 header.col(|ui| {
+        //                     ui.heading("Name");
+        //                 });
+        //                 header.col(|ui| {
+        //                     ui.heading("Value");
+        //                 });
+        //             })
+        //             .body(|mut body| {
+        //                 body.row(30.0, |mut row| {
+        //                     row.col(|ui| {
+        //                         ui.label("Threshold");
+        //                     });
+        //                     row.col(|ui| {
+        //                         let response = ui.add(
+        //                             egui::Slider::new(&mut self.threshold, 0..=255).step_by(1.0),
+        //                         );
+
+        //                         if response.changed() {
+        //                             // [TODO]: change image threshold here
+        //                             log::info!("Threshold changed to {}", self.threshold);
+        //                         }
+        //                     });
+        //                 });
+        //                 body.row(30.0, |mut row| {
+        //                     row.col(|ui| {
+        //                         ui.label("Minimal Pore Size");
+        //                     });
+        //                     row.col(|ui| {
+        //                         ui.add(egui::Slider::new(&mut self.minimal_pore_size, 0..=250));
+        //                     });
+        //                 });
+        //             });
+
+        //         if ui.button("Select Region").clicked() {
+        //             log::info!("Select Region");
+        //         }
+
+        //         if ui.button("Apply to Batch").clicked() {
+        //             log::info!("Apply to Batch");
+        //         }
+
+        //         if ui.button("Download Results").clicked() {
+        //             log::info!("Download Results");
+        //         }
+
+        //         ui.separator();
+
+        //         ui.heading("Image List");
+        //     });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let mut plot_response = egui_plot::Plot::new("plot")
+                .allow_zoom(true)
+                .data_aspect(1.0)
+                .show_axes(false)
+                .allow_boxed_zoom(false)
+                .show_grid(false)
+                .show(ui, |plot_ui| {
+                    if let Some(handle) = &self.selected_texture_handle {
+                        plot_ui.image(PlotImage::new(
+                            handle.id(),
+                            PlotPoint::new(0.0, 0.0),
+                            Vec2::new(handle.aspect_ratio(), 1.0),
+                        ));
+                    }
+                });
+
+            // Region Selector
+            {
+                if self.region_selector_start.is_none()
+                    && plot_response.response.drag_started()
+                    && plot_response
+                        .response
+                        .dragged_by(egui::PointerButton::Secondary)
+                {
+                    self.region_selector_start = plot_response.response.hover_pos();
+                }
+
+                if let Some(hover_pos) = plot_response.response.hover_pos() {
+                    self.region_selector_end = Some(hover_pos);
+                }
+
+                if let (Some(start), Some(end)) =
+                    (self.region_selector_start, self.region_selector_end)
+                {
+                    plot_response.response =
+                        plot_response.response.on_hover_cursor(CursorIcon::ZoomIn);
+
+                    let rect = epaint::Rect::from_two_pos(start, end);
+                    let selected_region = epaint::RectShape::stroke(
+                        rect,
+                        0.0,
+                        epaint::Stroke::new(1.25, Color32::GREEN),
+                    );
+                    ui.painter().rect_stroke(
+                        selected_region.rect,
+                        selected_region.rounding,
+                        selected_region.stroke,
+                    );
+
+                    if plot_response.response.drag_stopped() {
+                        let _start = plot_response.transform.value_from_position(start);
+                        let _end = plot_response.transform.value_from_position(end);
+
+                        self.region_selector_start = None;
+                        self.region_selector_end = None;
+                    }
+                }
+            }
         });
     }
-}
-
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
 }
