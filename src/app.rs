@@ -1,8 +1,17 @@
-use egui::{epaint, Color32, Pos2, TextureHandle, Vec2, Vec2b};
+use std::collections::HashMap;
+
+use egui::{
+    epaint::{self},
+    Color32, Pos2, TextureHandle, Vec2,
+};
 use egui_extras::{Column, TableBuilder};
 use egui_plot::{Line, PlotBounds, PlotImage, PlotPoint, PlotPoints};
-use image::DynamicImage;
-use imageproc::contrast::threshold;
+use image::{DynamicImage, Luma};
+use imageproc::{
+    contrast::threshold,
+    definitions::{HasBlack, HasWhite},
+    drawing::Canvas,
+};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -37,6 +46,12 @@ pub struct TemplateApp {
 
     #[serde(skip)]
     region_rect_end: Option<PlotPoint>,
+
+    #[serde(skip)]
+    black_pixels: Option<Vec<PlotPoint>>,
+
+    #[serde(skip)]
+    density: Option<f64>,
 }
 
 impl Default for TemplateApp {
@@ -53,6 +68,8 @@ impl Default for TemplateApp {
             region_selector_end: None,
             region_rect_start: None,
             region_rect_end: None,
+            black_pixels: None,
+            density: None,
         }
     }
 }
@@ -116,6 +133,14 @@ impl eframe::App for TemplateApp {
             });
         });
 
+        if let Some(density) = self.density {
+            egui::Window::new("Density")
+                .default_size([250.0, 100.0])
+                .show(ctx, |ui| {
+                    ui.heading(format!("Density: {:.5}%", density));
+                });
+        }
+
         // create floating window
         egui::SidePanel::new(egui::panel::Side::Left, "sidebar")
             .resizable(false)
@@ -141,25 +166,67 @@ impl eframe::App for TemplateApp {
                             row.col(|ui| {
                                 ui.style_mut().spacing.slider_width = 250.0;
 
+                                // [TODO]: move to thread bc its slow and therefore the slider step cannot be matched
                                 let response = ui.add(
                                     egui::Slider::new(&mut self.threshold, 0..=255).step_by(1.0),
                                 );
 
                                 if response.changed() {
-                                    let image = image::open("assets/example_image.png").unwrap();
+                                    let mut image =
+                                        image::open("assets/example_image.png").unwrap();
 
+                                    // convert to grayscale
                                     let grayscale = image.grayscale().to_luma8();
+                                    // apply threshold
                                     let grayscale_thresh = threshold(
                                         &grayscale,
                                         self.threshold.try_into().unwrap(),
                                         imageproc::contrast::ThresholdType::Binary,
                                     );
 
-                                    let texture_handle =
-                                        Some(load_texture(ctx, &grayscale_thresh.into()));
-                                    self.selected_texture_handle = texture_handle;
+                                    // find connected groups of white pixels
+                                    let labels = imageproc::region_labelling::connected_components(
+                                        &grayscale_thresh,
+                                        imageproc::region_labelling::Connectivity::Eight,
+                                        Luma::white(),
+                                    );
 
-                                    log::info!("Threshold changed to {}", self.threshold);
+                                    // count the pixels for each group/label
+                                    let mut test: HashMap<u32, i32> = HashMap::new();
+                                    labels.enumerate_pixels().for_each(|(_, _, p)| {
+                                        let count = test.entry(p[0]).or_insert(0);
+                                        *count += 1;
+                                    });
+
+                                    log::info!("num of labels: {}", test.keys().len());
+
+                                    // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
+                                    self.black_pixels = None;
+                                    let mut black_pixels = Vec::new();
+                                    labels.enumerate_pixels().for_each(|(x, y, p)| {
+                                        if grayscale_thresh.get_pixel(x, y) == &Luma::black()
+                                            && test[&p[0]] > self.minimal_pore_size.into()
+                                        {
+                                            let green_pixel = image::Rgba([0, 255, 13, 204]);
+                                            image.draw_pixel(x, y, green_pixel);
+
+                                            black_pixels.push(PlotPoint::new(x, y));
+                                        }
+                                    });
+                                    self.black_pixels = Some(black_pixels.clone());
+
+                                    log::info!("num of valid black pixels: {}", black_pixels.len());
+
+                                    // calculate the density for the whole image
+                                    let density = (1.0
+                                        - (black_pixels.len() as f64
+                                            / (grayscale.width() * grayscale.height()) as f64))
+                                        * 100.0;
+                                    self.density = Some(density);
+
+                                    // set the new image to display the green pixels
+                                    let texture_handle = Some(load_texture(ctx, &image.clone()));
+                                    self.selected_texture_handle = texture_handle.clone();
                                 }
                             });
                         });
@@ -174,8 +241,10 @@ impl eframe::App for TemplateApp {
                         });
                     });
 
-                if ui.button("Select Region").clicked() {
-                    log::info!("Select Region");
+                if ui.button("Reset Region").clicked() {
+                    log::info!("Reset Region");
+                    self.region_rect_start = None;
+                    self.region_rect_end = None;
                 }
 
                 if ui.button("Apply to Batch").clicked() {
@@ -199,13 +268,11 @@ impl eframe::App for TemplateApp {
                 .allow_boxed_zoom(false)
                 .show_grid(false)
                 .show(ui, |plot_ui| {
-                    plot_ui.set_auto_bounds(Vec2b::new(false, false));
-
                     if let Some(handle) = &self.selected_texture_handle {
                         plot_ui.add(PlotImage::new(
                             handle.id(),
-                            PlotPoint::new(0.5, 1.0 / handle.aspect_ratio() / 2.0),
-                            Vec2::new(1.0, 1.0 / handle.aspect_ratio()),
+                            PlotPoint::new(handle.size_vec2().x / 2.0, handle.size_vec2().y / 2.0),
+                            Vec2::new(handle.size_vec2().x, handle.size_vec2().y),
                         ));
                     }
 
@@ -247,7 +314,7 @@ impl eframe::App for TemplateApp {
                     let selected_region = epaint::RectShape::stroke(
                         rect,
                         0.0,
-                        epaint::Stroke::new(1.25, Color32::GREEN),
+                        epaint::Stroke::new(2.5, Color32::GREEN),
                     );
                     ui.painter().rect_stroke(
                         selected_region.rect,
