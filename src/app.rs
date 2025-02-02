@@ -1,14 +1,13 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::mpsc};
 
 use egui::{
     epaint::{self},
-    Color32, Pos2, TextureHandle, Vec2,
+    Color32, Pos2, TextureHandle, Ui, Vec2,
 };
 use egui_extras::{Column, TableBuilder};
-use egui_plot::{Line, PlotBounds, PlotImage, PlotPoint, PlotPoints};
+use egui_plot::{Line, PlotBounds, PlotImage, PlotPoint, PlotPoints, PlotResponse};
 use image::{DynamicImage, Luma};
 use imageproc::{
-    contrast::threshold,
     definitions::{HasBlack, HasWhite},
     drawing::Canvas,
 };
@@ -52,6 +51,9 @@ pub struct TemplateApp {
 
     #[serde(skip)]
     density: Option<f64>,
+
+    #[serde(skip)]
+    receiver: Option<mpsc::Receiver<(Vec<PlotPoint>, f64)>>,
 }
 
 impl Default for TemplateApp {
@@ -70,6 +72,7 @@ impl Default for TemplateApp {
             region_rect_end: None,
             black_pixels: None,
             density: None,
+            receiver: None,
         }
     }
 }
@@ -107,6 +110,67 @@ impl TemplateApp {
             ..Default::default()
         }
     }
+
+    pub fn analyze_image(&mut self, image: DynamicImage, tx: mpsc::Sender<(Vec<PlotPoint>, f64)>) {
+        let threshold = self.threshold;
+        let minimal_pore_size = self.minimal_pore_size;
+
+        std::thread::spawn(move || {
+            // convert to grayscale
+            let grayscale = image.grayscale().to_luma8();
+            // apply threshold
+            let grayscale_thresh = imageproc::contrast::threshold(
+                &grayscale,
+                threshold.try_into().unwrap(),
+                imageproc::contrast::ThresholdType::Binary,
+            );
+
+            // find connected groups of white pixels
+            let labels = imageproc::region_labelling::connected_components(
+                &grayscale_thresh,
+                imageproc::region_labelling::Connectivity::Eight,
+                Luma::white(),
+            );
+
+            // count the pixels for each group/label
+            let mut test: HashMap<u32, i32> = HashMap::new();
+            labels.enumerate_pixels().for_each(|(_, _, p)| {
+                let count = test.entry(p[0]).or_insert(0);
+                *count += 1;
+            });
+
+            log::info!("num of labels: {}", test.keys().len());
+
+            // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
+            let mut black_pixels = Vec::new();
+            labels.enumerate_pixels().for_each(|(x, y, p)| {
+                if grayscale_thresh.get_pixel(x, y) == &Luma::black()
+                    && test[&p[0]] > minimal_pore_size.into()
+                {
+                    // let green_pixel = image::Rgba([0, 255, 13, 204]);
+                    // image.draw_pixel(x, y, green_pixel);
+
+                    black_pixels.push(PlotPoint::new(x, y));
+                }
+            });
+            // self.black_pixels = Some(black_pixels.clone());
+
+            log::info!("num of valid black pixels: {}", black_pixels.len());
+
+            // calculate the density for the whole image
+            let density = (1.0
+                - (black_pixels.len() as f64 / (grayscale.width() * grayscale.height()) as f64))
+                * 100.0;
+            // self.density = Some(density);
+
+            // set the new image to display the green pixels
+            // let texture_handle = Some(load_texture(ctx, &image.clone()));
+            // self.selected_texture_handle = texture_handle.clone();
+
+            // send the black pixels and the density to the main thread
+            tx.send((black_pixels.clone(), density)).unwrap();
+        });
+    }
 }
 
 impl eframe::App for TemplateApp {
@@ -117,6 +181,25 @@ impl eframe::App for TemplateApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // receive from channel
+        if let Some(rec) = &self.receiver {
+            if let Ok((black_pixels, density)) = rec.try_recv() {
+                self.black_pixels = Some(black_pixels.clone());
+                self.density = Some(density);
+
+                // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
+                let image = image::open("assets/example_image.png").unwrap();
+                let mut image = image.to_rgba8();
+                let green_pixel = image::Rgba([0, 255, 13, 204]);
+                for pixel in black_pixels {
+                    image.draw_pixel(pixel.x as u32, pixel.y as u32, green_pixel);
+                }
+
+                let texture_handle = Some(load_texture(ctx, &DynamicImage::ImageRgba8(image)));
+                self.selected_texture_handle = texture_handle;
+            }
+        }
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 let is_web = cfg!(target_arch = "wasm32");
@@ -172,61 +255,11 @@ impl eframe::App for TemplateApp {
                                 );
 
                                 if response.changed() {
-                                    let mut image =
-                                        image::open("assets/example_image.png").unwrap();
+                                    let (tx, rx) = mpsc::channel();
+                                    self.receiver = Some(rx);
 
-                                    // convert to grayscale
-                                    let grayscale = image.grayscale().to_luma8();
-                                    // apply threshold
-                                    let grayscale_thresh = threshold(
-                                        &grayscale,
-                                        self.threshold.try_into().unwrap(),
-                                        imageproc::contrast::ThresholdType::Binary,
-                                    );
-
-                                    // find connected groups of white pixels
-                                    let labels = imageproc::region_labelling::connected_components(
-                                        &grayscale_thresh,
-                                        imageproc::region_labelling::Connectivity::Eight,
-                                        Luma::white(),
-                                    );
-
-                                    // count the pixels for each group/label
-                                    let mut test: HashMap<u32, i32> = HashMap::new();
-                                    labels.enumerate_pixels().for_each(|(_, _, p)| {
-                                        let count = test.entry(p[0]).or_insert(0);
-                                        *count += 1;
-                                    });
-
-                                    log::info!("num of labels: {}", test.keys().len());
-
-                                    // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
-                                    self.black_pixels = None;
-                                    let mut black_pixels = Vec::new();
-                                    labels.enumerate_pixels().for_each(|(x, y, p)| {
-                                        if grayscale_thresh.get_pixel(x, y) == &Luma::black()
-                                            && test[&p[0]] > self.minimal_pore_size.into()
-                                        {
-                                            let green_pixel = image::Rgba([0, 255, 13, 204]);
-                                            image.draw_pixel(x, y, green_pixel);
-
-                                            black_pixels.push(PlotPoint::new(x, y));
-                                        }
-                                    });
-                                    self.black_pixels = Some(black_pixels.clone());
-
-                                    log::info!("num of valid black pixels: {}", black_pixels.len());
-
-                                    // calculate the density for the whole image
-                                    let density = (1.0
-                                        - (black_pixels.len() as f64
-                                            / (grayscale.width() * grayscale.height()) as f64))
-                                        * 100.0;
-                                    self.density = Some(density);
-
-                                    // set the new image to display the green pixels
-                                    let texture_handle = Some(load_texture(ctx, &image.clone()));
-                                    self.selected_texture_handle = texture_handle.clone();
+                                    let image = image::open("assets/example_image.png").unwrap();
+                                    self.analyze_image(image, tx);
                                 }
                             });
                         });
@@ -236,7 +269,16 @@ impl eframe::App for TemplateApp {
                             });
                             row.col(|ui| {
                                 ui.style_mut().spacing.slider_width = 250.0;
-                                ui.add(egui::Slider::new(&mut self.minimal_pore_size, 0..=250));
+                                let response =
+                                    ui.add(egui::Slider::new(&mut self.minimal_pore_size, 0..=75));
+
+                                if response.changed() {
+                                    let (tx, rx) = mpsc::channel();
+                                    self.receiver = Some(rx);
+
+                                    let image = image::open("assets/example_image.png").unwrap();
+                                    self.analyze_image(image, tx);
+                                }
                             });
                         });
                     });
@@ -292,48 +334,44 @@ impl eframe::App for TemplateApp {
                     }
                 });
 
-            // Region Selector
-            {
-                if self.region_selector_start.is_none()
-                    && plot_response.response.drag_started()
-                    && plot_response
-                        .response
-                        .dragged_by(egui::PointerButton::Secondary)
-                {
-                    self.region_selector_start = plot_response.response.hover_pos();
-                }
-
-                if let Some(hover_pos) = plot_response.response.hover_pos() {
-                    self.region_selector_end = Some(hover_pos);
-                }
-
-                if let (Some(start), Some(end)) =
-                    (self.region_selector_start, self.region_selector_end)
-                {
-                    let rect = epaint::Rect::from_two_pos(start, end);
-                    let selected_region = epaint::RectShape::stroke(
-                        rect,
-                        0.0,
-                        epaint::Stroke::new(2.5, Color32::GREEN),
-                    );
-                    ui.painter().rect_stroke(
-                        selected_region.rect,
-                        selected_region.rounding,
-                        selected_region.stroke,
-                    );
-
-                    if plot_response.response.drag_stopped() {
-                        let start = plot_response.transform.value_from_position(start);
-                        let end = plot_response.transform.value_from_position(end);
-
-                        self.region_rect_start = Some(start);
-                        self.region_rect_end = Some(end);
-
-                        self.region_selector_start = None;
-                        self.region_selector_end = None;
-                    }
-                }
-            }
+            region_selection(self, ui, &plot_response);
         });
+    }
+}
+
+fn region_selection(app: &mut TemplateApp, ui: &mut Ui, plot_response: &PlotResponse<()>) {
+    if app.region_selector_start.is_none()
+        && plot_response.response.drag_started()
+        && plot_response
+            .response
+            .dragged_by(egui::PointerButton::Secondary)
+    {
+        app.region_selector_start = plot_response.response.hover_pos();
+    }
+
+    if let Some(hover_pos) = plot_response.response.hover_pos() {
+        app.region_selector_end = Some(hover_pos);
+    }
+
+    if let (Some(start), Some(end)) = (app.region_selector_start, app.region_selector_end) {
+        let rect = epaint::Rect::from_two_pos(start, end);
+        let selected_region =
+            epaint::RectShape::stroke(rect, 0.0, epaint::Stroke::new(2.5, Color32::GREEN));
+        ui.painter().rect_stroke(
+            selected_region.rect,
+            selected_region.rounding,
+            selected_region.stroke,
+        );
+
+        if plot_response.response.drag_stopped() {
+            let start = plot_response.transform.value_from_position(start);
+            let end = plot_response.transform.value_from_position(end);
+
+            app.region_rect_start = Some(start);
+            app.region_rect_end = Some(end);
+
+            app.region_selector_start = None;
+            app.region_selector_end = None;
+        }
     }
 }
