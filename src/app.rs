@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::mpsc};
+use std::{collections::HashMap, sync::mpsc, time::Instant};
 
 use egui::{
     epaint::{self},
@@ -125,50 +125,49 @@ impl TemplateApp {
                 imageproc::contrast::ThresholdType::Binary,
             );
 
+            let start = Instant::now();
             // find connected groups of white pixels
             let labels = imageproc::region_labelling::connected_components(
                 &grayscale_thresh,
                 imageproc::region_labelling::Connectivity::Eight,
                 Luma::white(),
             );
+            log::info!("connected component labeling took: {:?}", start.elapsed());
 
+            let start = Instant::now();
             // count the pixels for each group/label
             let mut test: HashMap<u32, i32> = HashMap::new();
             labels.enumerate_pixels().for_each(|(_, _, p)| {
                 let count = test.entry(p[0]).or_insert(0);
                 *count += 1;
             });
+            log::info!("counting pixels took: {:?}", start.elapsed());
 
-            log::info!("num of labels: {}", test.keys().len());
+            // log::info!("num of labels: {}", test.keys().len());
 
+            let start = Instant::now();
             // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
             let mut black_pixels = Vec::new();
             labels.enumerate_pixels().for_each(|(x, y, p)| {
                 if grayscale_thresh.get_pixel(x, y) == &Luma::black()
                     && test[&p[0]] > minimal_pore_size.into()
                 {
-                    // let green_pixel = image::Rgba([0, 255, 13, 204]);
-                    // image.draw_pixel(x, y, green_pixel);
-
                     black_pixels.push(PlotPoint::new(x, y));
                 }
             });
-            // self.black_pixels = Some(black_pixels.clone());
+            log::info!("drawing green pixels took: {:?}", start.elapsed());
 
-            log::info!("num of valid black pixels: {}", black_pixels.len());
+            // log::info!("num of valid black pixels: {}", black_pixels.len());
 
             // calculate the density for the whole image
             let density = (1.0
                 - (black_pixels.len() as f64 / (grayscale.width() * grayscale.height()) as f64))
                 * 100.0;
-            // self.density = Some(density);
-
-            // set the new image to display the green pixels
-            // let texture_handle = Some(load_texture(ctx, &image.clone()));
-            // self.selected_texture_handle = texture_handle.clone();
 
             // send the black pixels and the density to the main thread
-            tx.send((black_pixels.clone(), density)).unwrap();
+            if let Err(err) = tx.send((black_pixels.clone(), density)) {
+                log::error!("Error sending data to another thread: {}", err);
+            }
         });
     }
 }
@@ -181,6 +180,7 @@ impl eframe::App for TemplateApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // [TODO] move this to a another thread bc painting blocks the main thread for a short time
         // receive from channel
         if let Some(rec) = &self.receiver {
             if let Ok((black_pixels, density)) = rec.try_recv() {
@@ -249,12 +249,14 @@ impl eframe::App for TemplateApp {
                             row.col(|ui| {
                                 ui.style_mut().spacing.slider_width = 250.0;
 
-                                // [TODO]: move to thread bc its slow and therefore the slider step cannot be matched
                                 let response = ui.add(
                                     egui::Slider::new(&mut self.threshold, 0..=255).step_by(1.0),
                                 );
 
                                 if response.changed() {
+                                    // [TODO] use channels differently bc changing the value will create a new channel
+                                    //        and the old receiver will be dropped, so the thread is sending on a closed
+                                    //        channel
                                     let (tx, rx) = mpsc::channel();
                                     self.receiver = Some(rx);
 
