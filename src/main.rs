@@ -23,7 +23,7 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Pore Detection",
         native_options,
-        Box::new(|cc| Ok(Box::new(wasm_pore_detection::TemplateApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(wasm_pore_detection::PoreDetectionApp::new(cc)))),
     )
 }
 
@@ -53,7 +53,7 @@ fn main() {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| Ok(Box::new(wasm_pore_detection::TemplateApp::new(cc)))),
+                Box::new(|cc| Ok(Box::new(wasm_pore_detection::PoreDetectionApp::new(cc)))),
             )
             .await;
 

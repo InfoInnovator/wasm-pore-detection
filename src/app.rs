@@ -12,16 +12,8 @@ use imageproc::{
     drawing::Canvas,
 };
 
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
-pub struct TemplateApp {
-    // Example stuff:
-    label: String,
-
-    #[serde(skip)] // This how you opt-out of serialization of a field
-    value: f32,
-
+#[derive(Default, serde::Deserialize, serde::Serialize)]
+pub struct PoreDetectionApp {
     #[serde(skip)]
     threshold: i16,
 
@@ -56,27 +48,6 @@ pub struct TemplateApp {
     receiver: Option<mpsc::Receiver<(Vec<PlotPoint>, f64)>>,
 }
 
-impl Default for TemplateApp {
-    fn default() -> Self {
-        Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
-            threshold: 0,
-            minimal_pore_size: 0,
-            selected_area: None,
-            selected_texture_handle: None,
-            region_selector_start: None,
-            region_selector_end: None,
-            region_rect_start: None,
-            region_rect_end: None,
-            black_pixels: None,
-            density: None,
-            receiver: None,
-        }
-    }
-}
-
 fn load_texture(ctx: &egui::Context, image: &DynamicImage) -> TextureHandle {
     let rgba_image = image.to_rgba8();
     let size = [image.width() as _, image.height() as _];
@@ -90,18 +61,8 @@ fn load_texture(ctx: &egui::Context, image: &DynamicImage) -> TextureHandle {
     )
 }
 
-impl TemplateApp {
-    /// Called once before the first frame.
+impl PoreDetectionApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        // if let Some(storage) = cc.storage {
-        //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        // }
-
         let image = image::open("assets/example_image.png").unwrap();
         let texture_handle = Some(load_texture(&cc.egui_ctx, &image));
 
@@ -125,27 +86,20 @@ impl TemplateApp {
                 imageproc::contrast::ThresholdType::Binary,
             );
 
-            let start = Instant::now();
             // find connected groups of white pixels
             let labels = imageproc::region_labelling::connected_components(
                 &grayscale_thresh,
                 imageproc::region_labelling::Connectivity::Eight,
                 Luma::white(),
             );
-            log::info!("connected component labeling took: {:?}", start.elapsed());
 
-            let start = Instant::now();
             // count the pixels for each group/label
             let mut test: HashMap<u32, i32> = HashMap::new();
             labels.enumerate_pixels().for_each(|(_, _, p)| {
                 let count = test.entry(p[0]).or_insert(0);
                 *count += 1;
             });
-            log::info!("counting pixels took: {:?}", start.elapsed());
 
-            // log::info!("num of labels: {}", test.keys().len());
-
-            let start = Instant::now();
             // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
             let mut black_pixels = Vec::new();
             labels.enumerate_pixels().for_each(|(x, y, p)| {
@@ -155,9 +109,6 @@ impl TemplateApp {
                     black_pixels.push(PlotPoint::new(x, y));
                 }
             });
-            log::info!("drawing green pixels took: {:?}", start.elapsed());
-
-            // log::info!("num of valid black pixels: {}", black_pixels.len());
 
             // calculate the density for the whole image
             let density = (1.0
@@ -172,13 +123,7 @@ impl TemplateApp {
     }
 }
 
-impl eframe::App for TemplateApp {
-    /// Called by the frame work to save state before shutdown.
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
-    }
-
-    /// Called each time the UI needs repainting, which may be many times per second.
+impl eframe::App for PoreDetectionApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // [TODO] move this to a another thread bc painting blocks the main thread for a short time
         // receive from channel
@@ -341,7 +286,7 @@ impl eframe::App for TemplateApp {
     }
 }
 
-fn region_selection(app: &mut TemplateApp, ui: &mut Ui, plot_response: &PlotResponse<()>) {
+fn region_selection(app: &mut PoreDetectionApp, ui: &mut Ui, plot_response: &PlotResponse<()>) {
     if app.region_selector_start.is_none()
         && plot_response.response.drag_started()
         && plot_response
