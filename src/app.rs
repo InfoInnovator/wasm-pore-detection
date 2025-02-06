@@ -153,8 +153,27 @@ impl eframe::App for PoreDetectionApp {
                     let image = image::open(path).unwrap();
                     let mut image = image.to_rgba8();
                     let green_pixel = image::Rgba([0, 255, 13, 204]);
-                    for pixel in black_pixels {
-                        image.draw_pixel(pixel.x as u32, pixel.y as u32, green_pixel);
+
+                    if let (Some(region_start), Some(region_end)) =
+                        (self.region_rect_start, self.region_rect_end)
+                    {
+                        for pixel in black_pixels {
+                            let y_start = image.height() - region_start.y as u32;
+                            let y_end = image.height() - region_end.y as u32;
+
+                            if pixel.x >= region_start.x
+                                && pixel.x <= region_end.x
+                                && pixel.y >= y_start.into()
+                                && pixel.y <= y_end.into()
+                            {
+                                image.draw_pixel(pixel.x as u32, pixel.y as u32, green_pixel);
+                            }
+                        }
+                    } else {
+                        for pixel in black_pixels.clone() {
+                            image.draw_pixel(pixel.x as u32, pixel.y as u32, green_pixel);
+                        }
+                        log::info!("first pixel pos: {:?}", black_pixels[0]);
                     }
 
                     let texture_handle = Some(load_texture(ctx, &DynamicImage::ImageRgba8(image)));
