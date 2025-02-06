@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::mpsc, time::Instant};
+use std::{collections::HashMap, sync::mpsc};
 
 use egui::{
     epaint::{self},
@@ -12,39 +12,28 @@ use imageproc::{
     drawing::Canvas,
 };
 
-#[derive(Default, serde::Deserialize, serde::Serialize)]
+#[derive(Default)]
 pub struct PoreDetectionApp {
-    #[serde(skip)]
     threshold: i16,
 
-    #[serde(skip)]
     minimal_pore_size: i16,
 
-    #[serde(skip)]
     selected_area: Option<PlotBounds>,
 
-    #[serde(skip)]
     selected_texture_handle: Option<TextureHandle>,
 
-    #[serde(skip)]
     region_selector_start: Option<Pos2>,
 
-    #[serde(skip)]
     region_selector_end: Option<Pos2>,
 
-    #[serde(skip)]
     region_rect_start: Option<PlotPoint>,
 
-    #[serde(skip)]
     region_rect_end: Option<PlotPoint>,
 
-    #[serde(skip)]
     black_pixels: Option<Vec<PlotPoint>>,
 
-    #[serde(skip)]
     density: Option<f64>,
 
-    #[serde(skip)]
     receiver: Option<mpsc::Receiver<(Vec<PlotPoint>, f64)>>,
 }
 
