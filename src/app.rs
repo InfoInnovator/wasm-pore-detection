@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync::mpsc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::mpsc,
+};
 
 use egui::{
     epaint::{self},
@@ -11,8 +15,8 @@ use imageproc::{
     definitions::{HasBlack, HasWhite},
     drawing::Canvas,
 };
+use rfd::FileDialog;
 
-#[derive(Default)]
 pub struct PoreDetectionApp {
     threshold: i16,
 
@@ -35,6 +39,33 @@ pub struct PoreDetectionApp {
     density: Option<f64>,
 
     receiver: Option<mpsc::Receiver<(Vec<PlotPoint>, f64)>>,
+
+    folder_path: Option<Vec<PathBuf>>,
+
+    selected_image: Option<DynamicImage>,
+
+    selected_image_path: Option<PathBuf>,
+}
+
+impl Default for PoreDetectionApp {
+    fn default() -> Self {
+        Self {
+            threshold: 75,
+            minimal_pore_size: 0,
+            selected_area: None,
+            selected_texture_handle: None,
+            region_selector_start: None,
+            region_selector_end: None,
+            region_rect_start: None,
+            region_rect_end: None,
+            black_pixels: None,
+            density: None,
+            receiver: None,
+            folder_path: None,
+            selected_image: None,
+            selected_image_path: None,
+        }
+    }
 }
 
 fn load_texture(ctx: &egui::Context, image: &DynamicImage) -> TextureHandle {
@@ -51,14 +82,8 @@ fn load_texture(ctx: &egui::Context, image: &DynamicImage) -> TextureHandle {
 }
 
 impl PoreDetectionApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let image = image::open("assets/example_image.png").unwrap();
-        let texture_handle = Some(load_texture(&cc.egui_ctx, &image));
-
-        Self {
-            selected_texture_handle: texture_handle,
-            ..Default::default()
-        }
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+        Self::default()
     }
 
     pub fn analyze_image(&mut self, image: DynamicImage, tx: mpsc::Sender<(Vec<PlotPoint>, f64)>) {
@@ -122,15 +147,19 @@ impl eframe::App for PoreDetectionApp {
                 self.density = Some(density);
 
                 // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
-                let image = image::open("assets/example_image.png").unwrap();
-                let mut image = image.to_rgba8();
-                let green_pixel = image::Rgba([0, 255, 13, 204]);
-                for pixel in black_pixels {
-                    image.draw_pixel(pixel.x as u32, pixel.y as u32, green_pixel);
-                }
+                if let Some(path) = self.selected_image_path.clone() {
+                    log::info!("Drawing green pixels on image: {:?}", path);
 
-                let texture_handle = Some(load_texture(ctx, &DynamicImage::ImageRgba8(image)));
-                self.selected_texture_handle = texture_handle;
+                    let image = image::open(path).unwrap();
+                    let mut image = image.to_rgba8();
+                    let green_pixel = image::Rgba([0, 255, 13, 204]);
+                    for pixel in black_pixels {
+                        image.draw_pixel(pixel.x as u32, pixel.y as u32, green_pixel);
+                    }
+
+                    let texture_handle = Some(load_texture(ctx, &DynamicImage::ImageRgba8(image)));
+                    self.selected_texture_handle = texture_handle;
+                }
             }
         }
 
@@ -186,8 +215,11 @@ impl eframe::App for PoreDetectionApp {
                                     let (tx, rx) = mpsc::channel();
                                     self.receiver = Some(rx);
 
-                                    let image = image::open("assets/example_image.png").unwrap();
-                                    self.analyze_image(image, tx);
+                                    if let Some(image) = self.selected_image.clone() {
+                                        self.analyze_image(image.clone(), tx);
+                                    } else {
+                                        log::warn!("No image selected");
+                                    }
                                 }
                             });
                         });
@@ -204,8 +236,10 @@ impl eframe::App for PoreDetectionApp {
                                     let (tx, rx) = mpsc::channel();
                                     self.receiver = Some(rx);
 
-                                    let image = image::open("assets/example_image.png").unwrap();
-                                    self.analyze_image(image, tx);
+                                    // let image = image::open("assets/example_image.png").unwrap();
+                                    if let Some(image) = self.selected_image.clone() {
+                                        self.analyze_image(image.clone(), tx);
+                                    }
                                 }
                             });
                         });
@@ -234,6 +268,33 @@ impl eframe::App for PoreDetectionApp {
                 ui.separator();
 
                 ui.heading("Image List");
+
+                // [TODO] make async so the ui is not blocked
+                if let Some(folder_path) = &self.folder_path {
+                    for path in folder_path {
+                        let path_str = path.file_name().unwrap().to_str().unwrap();
+
+                        if ui.button(path_str).clicked() {
+                            self.selected_image_path = Some(path.clone());
+                            let image = image::open(path).unwrap();
+                            self.selected_image = Some(image.clone());
+
+                            let texture_handle = Some(load_texture(ctx, &image.clone()));
+                            self.selected_texture_handle = texture_handle;
+
+                            log::info!("Selected Image: {}", path_str);
+                        }
+                    }
+                } else {
+                    ui.centered_and_justified(|ui| {
+                        if ui.button("Open Files").clicked() {
+                            let path = FileDialog::new().pick_files();
+                            if let Some(path) = path {
+                                self.folder_path = Some(path);
+                            }
+                        }
+                    });
+                }
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
