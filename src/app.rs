@@ -161,14 +161,6 @@ impl eframe::App for PoreDetectionApp {
             });
         });
 
-        if let Some(density) = self.density {
-            egui::Window::new("Density")
-                .default_size([250.0, 100.0])
-                .show(ctx, |ui| {
-                    ui.heading(format!("Density: {:.5}%", density));
-                });
-        }
-
         // create floating window
         egui::SidePanel::new(egui::panel::Side::Left, "sidebar")
             .resizable(false)
@@ -242,6 +234,12 @@ impl eframe::App for PoreDetectionApp {
 
                 if ui.button("Download Results").clicked() {
                     log::info!("Download Results");
+                }
+
+                if let Some(density) = self.density {
+                    ui.heading(format!("Density: {:.5}%", density));
+                } else {
+                    ui.heading("Density: -".to_string());
                 }
 
                 ui.separator();
