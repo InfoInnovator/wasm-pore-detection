@@ -1,5 +1,6 @@
 use std::sync::mpsc;
 
+use egui::Color32;
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
@@ -127,6 +128,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                     .column(Column::auto().at_least(200.0))
                     .column(Column::remainder())
                     .striped(true)
+                    .sense(egui::Sense::click())
                     .body(|mut body| {
                         for (i, path) in folder_path.iter().enumerate() {
                             let path_str = path.file_name().unwrap().to_str().unwrap().to_string();
