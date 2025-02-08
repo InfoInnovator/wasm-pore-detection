@@ -23,9 +23,9 @@ log = "0.4"
 
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }
-egui_extras = "0.30.0"
+egui_extras = { version = "0.30.0", features = ["all_loaders"] }
 egui_plot = "0.30.0"
-image = "0.25.5"
+image = { version = "0.25.5", features = ["jpeg", "png"] }
 imageproc = "0.25.0"
 tokio = "1.43.0"
 rfd = "0.15.2"

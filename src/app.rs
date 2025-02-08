@@ -1,15 +1,11 @@
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    sync::mpsc,
-};
+use std::{collections::HashMap, path::PathBuf, sync::mpsc};
 
 use egui::{
     epaint::{self},
     Color32, Pos2, TextureHandle, Ui, Vec2,
 };
-use egui_extras::{Column, TableBuilder};
-use egui_plot::{Line, PlotBounds, PlotImage, PlotPoint, PlotPoints, PlotResponse};
+use egui_extras::{install_image_loaders, Column, TableBuilder};
+use egui_plot::{Line, PlotImage, PlotPoint, PlotPoints, PlotResponse};
 use image::{DynamicImage, Luma};
 use imageproc::{
     definitions::{HasBlack, HasWhite},
@@ -17,34 +13,26 @@ use imageproc::{
 };
 use rfd::FileDialog;
 
+#[derive(Default)]
+struct ImageData {
+    path: Option<PathBuf>,
+    image: Option<DynamicImage>,
+    density: Option<f64>,
+    black_pixels: Option<Vec<PlotPoint>>,
+    region_start: Option<PlotPoint>,
+    region_end: Option<PlotPoint>,
+}
+
 pub struct PoreDetectionApp {
     threshold: i16,
-
     minimal_pore_size: i16,
-
-    selected_area: Option<PlotBounds>,
-
     selected_texture_handle: Option<TextureHandle>,
-
-    region_selector_start: Option<Pos2>,
-
-    region_selector_end: Option<Pos2>,
-
-    region_rect_start: Option<PlotPoint>,
-
-    region_rect_end: Option<PlotPoint>,
-
-    black_pixels: Option<Vec<PlotPoint>>,
-
-    density: Option<f64>,
-
+    region_selector_start: Option<Pos2>, // for region selector use only
+    region_selector_end: Option<Pos2>,   // for region selector use only
     receiver: Option<mpsc::Receiver<(Vec<PlotPoint>, f64)>>,
-
     folder_path: Option<Vec<PathBuf>>,
-
-    selected_image: Option<DynamicImage>,
-
-    selected_image_path: Option<PathBuf>,
+    selected_image: Option<usize>,
+    images: Vec<ImageData>,
 }
 
 impl Default for PoreDetectionApp {
@@ -52,18 +40,13 @@ impl Default for PoreDetectionApp {
         Self {
             threshold: 75,
             minimal_pore_size: 0,
-            selected_area: None,
             selected_texture_handle: None,
             region_selector_start: None,
             region_selector_end: None,
-            region_rect_start: None,
-            region_rect_end: None,
-            black_pixels: None,
-            density: None,
             receiver: None,
             folder_path: None,
             selected_image: None,
-            selected_image_path: None,
+            images: Vec::new(),
         }
     }
 }
@@ -82,13 +65,18 @@ fn load_texture(ctx: &egui::Context, image: &DynamicImage) -> TextureHandle {
 }
 
 impl PoreDetectionApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        install_image_loaders(&cc.egui_ctx);
         Self::default()
     }
 
     pub fn analyze_image(&mut self, image: DynamicImage, tx: mpsc::Sender<(Vec<PlotPoint>, f64)>) {
+        let selected_img = self.selected_image.unwrap_or(0);
+
         let threshold = self.threshold;
         let minimal_pore_size = self.minimal_pore_size;
+        let region_start = self.images[selected_img].region_start;
+        let region_end = self.images[selected_img].region_end;
 
         std::thread::spawn(move || {
             // convert to grayscale
@@ -116,24 +104,102 @@ impl PoreDetectionApp {
 
             // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
             let mut black_pixels = Vec::new();
-            labels.enumerate_pixels().for_each(|(x, y, p)| {
-                if grayscale_thresh.get_pixel(x, y) == &Luma::black()
-                    && test[&p[0]] > minimal_pore_size.into()
-                {
-                    black_pixels.push(PlotPoint::new(x, y));
-                }
-            });
+            if let (Some(region_start), Some(region_end)) = (region_start, region_end) {
+                labels.enumerate_pixels().for_each(|(x, y, p)| {
+                    let y_start = image.height() - region_start.y as u32;
+                    let y_end = image.height() - region_end.y as u32;
+
+                    if grayscale_thresh.get_pixel(x, y) == &Luma::black()
+                        && test[&p[0]] > minimal_pore_size.into()
+                        && x >= region_start.x as u32
+                        && x <= region_end.x as u32
+                        && y >= y_start
+                        && y <= y_end
+                    {
+                        black_pixels.push(PlotPoint::new(x, y));
+                    }
+                });
+            } else {
+                labels.enumerate_pixels().for_each(|(x, y, p)| {
+                    if grayscale_thresh.get_pixel(x, y) == &Luma::black()
+                        && test[&p[0]] > minimal_pore_size.into()
+                    {
+                        black_pixels.push(PlotPoint::new(x, y));
+                    }
+                });
+            }
+            log::info!("pushed black pixels: {:?}", black_pixels.len());
 
             // calculate the density for the whole image
-            let density = (1.0
-                - (black_pixels.len() as f64 / (grayscale.width() * grayscale.height()) as f64))
-                * 100.0;
+            let density;
+            if let (Some(start), Some(end)) = (region_start, region_end) {
+                density = (1.0
+                    - (black_pixels.len() as f64
+                        / ((f64::abs(end.x - start.x)) * f64::abs(end.y - start.y))))
+                    * 100.0;
+            } else {
+                density = (1.0
+                    - (black_pixels.len() as f64
+                        / (grayscale.width() * grayscale.height()) as f64))
+                    * 100.0;
+            }
 
             // send the black pixels and the density to the main thread
             if let Err(err) = tx.send((black_pixels.clone(), density)) {
                 log::error!("Error sending data to another thread: {}", err);
             }
         });
+    }
+
+    fn region_selection(&mut self, ui: &mut Ui, plot_response: &PlotResponse<()>) {
+        if self.region_selector_start.is_none()
+            && plot_response.response.drag_started()
+            && plot_response
+                .response
+                .dragged_by(egui::PointerButton::Secondary)
+        {
+            self.region_selector_start = plot_response.response.hover_pos();
+        }
+
+        if let Some(hover_pos) = plot_response.response.hover_pos() {
+            self.region_selector_end = Some(hover_pos);
+        }
+
+        if let (Some(start), Some(end)) = (self.region_selector_start, self.region_selector_end) {
+            let rect = epaint::Rect::from_two_pos(start, end);
+            let selected_region =
+                epaint::RectShape::stroke(rect, 0.0, epaint::Stroke::new(2.5, Color32::GREEN));
+            ui.painter().rect_stroke(
+                selected_region.rect,
+                selected_region.rounding,
+                selected_region.stroke,
+            );
+
+            if plot_response.response.drag_stopped() {
+                let start = plot_response.transform.value_from_position(start);
+                let end = plot_response.transform.value_from_position(end);
+
+                let selected_img = self.selected_image.unwrap_or(0);
+                if let Some(img) = &self.images[selected_img].image {
+                    let size = img.dimensions();
+
+                    let start = PlotPoint::new(
+                        start.x.clamp(0.0, size.0 as f64),
+                        start.y.clamp(0.0, size.1 as f64),
+                    );
+                    let end = PlotPoint::new(
+                        end.x.clamp(0.0, size.0 as f64),
+                        end.y.clamp(0.0, size.1 as f64),
+                    );
+
+                    self.images[selected_img].region_start = Some(start);
+                    self.images[selected_img].region_end = Some(end);
+                }
+
+                self.region_selector_start = None;
+                self.region_selector_end = None;
+            }
+        }
     }
 }
 
@@ -143,20 +209,23 @@ impl eframe::App for PoreDetectionApp {
         // receive from channel
         if let Some(rec) = &self.receiver {
             if let Ok((black_pixels, density)) = rec.try_recv() {
-                self.black_pixels = Some(black_pixels.clone());
-                self.density = Some(density);
+                let selected_img = self.selected_image.unwrap_or(0);
+
+                self.images[selected_img].black_pixels = Some(black_pixels.clone());
+                self.images[selected_img].density = Some(density);
 
                 // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
-                if let Some(path) = self.selected_image_path.clone() {
+                if let Some(path) = &self.images[selected_img].path {
                     log::info!("Drawing green pixels on image: {:?}", path);
 
                     let image = image::open(path).unwrap();
                     let mut image = image.to_rgba8();
                     let green_pixel = image::Rgba([0, 255, 13, 204]);
 
-                    if let (Some(region_start), Some(region_end)) =
-                        (self.region_rect_start, self.region_rect_end)
-                    {
+                    if let (Some(region_start), Some(region_end)) = (
+                        self.images[selected_img].region_start,
+                        self.images[selected_img].region_end,
+                    ) {
                         for pixel in black_pixels {
                             let y_start = image.height() - region_start.y as u32;
                             let y_end = image.height() - region_end.y as u32;
@@ -200,11 +269,12 @@ impl eframe::App for PoreDetectionApp {
 
         // create floating window
         egui::SidePanel::new(egui::panel::Side::Left, "sidebar")
-            .resizable(false)
+            .resizable(true)
             .show(ctx, |ui| {
                 ui.heading("Options");
 
                 TableBuilder::new(ui)
+                    .id_salt("options_table")
                     .column(Column::auto())
                     .column(Column::auto())
                     .header(20.0, |mut header| {
@@ -234,7 +304,9 @@ impl eframe::App for PoreDetectionApp {
                                     let (tx, rx) = mpsc::channel();
                                     self.receiver = Some(rx);
 
-                                    if let Some(image) = self.selected_image.clone() {
+                                    if let Some(image) =
+                                        &self.images[self.selected_image.unwrap_or(0)].image
+                                    {
                                         self.analyze_image(image.clone(), tx);
                                     } else {
                                         log::warn!("No image selected");
@@ -255,8 +327,9 @@ impl eframe::App for PoreDetectionApp {
                                     let (tx, rx) = mpsc::channel();
                                     self.receiver = Some(rx);
 
-                                    // let image = image::open("assets/example_image.png").unwrap();
-                                    if let Some(image) = self.selected_image.clone() {
+                                    if let Some(image) =
+                                        &self.images[self.selected_image.unwrap_or(0)].image
+                                    {
                                         self.analyze_image(image.clone(), tx);
                                     }
                                 }
@@ -266,8 +339,9 @@ impl eframe::App for PoreDetectionApp {
 
                 if ui.button("Reset Region").clicked() {
                     log::info!("Reset Region");
-                    self.region_rect_start = None;
-                    self.region_rect_end = None;
+                    let selected_img = self.selected_image.unwrap_or(0);
+                    self.images[selected_img].region_start = None;
+                    self.images[selected_img].region_end = None;
                 }
 
                 if ui.button("Apply to Batch").clicked() {
@@ -278,10 +352,12 @@ impl eframe::App for PoreDetectionApp {
                     log::info!("Download Results");
                 }
 
-                if let Some(density) = self.density {
-                    ui.heading(format!("Density: {:.5}%", density));
-                } else {
-                    ui.heading("Density: -".to_string());
+                if let Some(selected_img) = self.selected_image {
+                    if let Some(density) = self.images[selected_img].density {
+                        ui.heading(format!("Density: {:.5}%", density));
+                    } else {
+                        ui.heading("Density: -".to_string());
+                    }
                 }
 
                 ui.separator();
@@ -290,26 +366,61 @@ impl eframe::App for PoreDetectionApp {
 
                 // [TODO] make async so the ui is not blocked
                 if let Some(folder_path) = &self.folder_path {
-                    for path in folder_path {
-                        let path_str = path.file_name().unwrap().to_str().unwrap();
+                    // create table with image names
+                    TableBuilder::new(ui)
+                        .id_salt("image_list")
+                        .column(Column::auto().at_least(200.0))
+                        .column(Column::remainder())
+                        .striped(true)
+                        .body(|mut body| {
+                            for (i, path) in folder_path.iter().enumerate() {
+                                let path_str =
+                                    path.file_name().unwrap().to_str().unwrap().to_string();
 
-                        if ui.button(path_str).clicked() {
-                            self.selected_image_path = Some(path.clone());
-                            let image = image::open(path).unwrap();
-                            self.selected_image = Some(image.clone());
+                                body.row(150.0, |mut row| {
+                                    row.col(|ui| {
+                                        ui.image(format!("file://{}", path.to_str().unwrap()));
+                                    });
+                                    row.col(|ui| {
+                                        let resp = ui.heading(path_str);
 
-                            let texture_handle = Some(load_texture(ctx, &image.clone()));
-                            self.selected_texture_handle = texture_handle;
+                                        ui.label(format!(
+                                            "Density: {:.5}%",
+                                            self.images[i].density.unwrap_or(0.0),
+                                        ));
 
-                            log::info!("Selected Image: {}", path_str);
-                        }
-                    }
+                                        if resp.clicked() {
+                                            self.selected_image = Some(i);
+                                            let image = image::open(path).unwrap();
+                                            self.selected_texture_handle =
+                                                Some(load_texture(ctx, &image));
+                                            self.images[i].image = Some(image.clone());
+
+                                            log::info!("Selected Image: {:?}", self.selected_image);
+                                        }
+                                    });
+                                });
+                            }
+                        });
                 } else {
-                    ui.centered_and_justified(|ui| {
+                    ui.vertical_centered(|ui| {
                         if ui.button("Open Files").clicked() {
                             let path = FileDialog::new().pick_files();
-                            if let Some(path) = path {
-                                self.folder_path = Some(path);
+                            if let Some(paths) = path {
+                                for path in &paths {
+                                    self.images.push(ImageData {
+                                        path: Some(path.to_path_buf()),
+                                        ..Default::default()
+                                    });
+                                }
+
+                                self.selected_image = Some(0);
+                                self.folder_path = Some(paths.clone());
+
+                                let image = image::open(&paths[0]).unwrap();
+                                self.images[0].image = Some(image.clone());
+                                let texture_handle = Some(load_texture(ctx, &image.clone()));
+                                self.selected_texture_handle = texture_handle;
                             }
                         }
                     });
@@ -332,60 +443,26 @@ impl eframe::App for PoreDetectionApp {
                         ));
                     }
 
-                    if let (Some(rect_start), Some(rect_end)) =
-                        (self.region_rect_start, self.region_rect_end)
-                    {
-                        let rect_plot_points: PlotPoints =
-                            egui_plot::PlotPoints::Owned(Vec::from([
-                                rect_start,
-                                PlotPoint::new(rect_end.x, rect_start.y),
-                                rect_end,
-                                PlotPoint::new(rect_start.x, rect_end.y),
-                                rect_start,
-                            ]));
+                    if let Some(selected_img) = self.selected_image {
+                        if let (Some(rect_start), Some(rect_end)) = (
+                            self.images[selected_img].region_start,
+                            self.images[selected_img].region_end,
+                        ) {
+                            let rect_plot_points: PlotPoints =
+                                egui_plot::PlotPoints::Owned(Vec::from([
+                                    rect_start,
+                                    PlotPoint::new(rect_end.x, rect_start.y),
+                                    rect_end,
+                                    PlotPoint::new(rect_start.x, rect_end.y),
+                                    rect_start,
+                                ]));
 
-                        plot_ui.line(Line::new(rect_plot_points));
+                            plot_ui.line(Line::new(rect_plot_points));
+                        }
                     }
                 });
 
-            region_selection(self, ui, &plot_response);
+            self.region_selection(ui, &plot_response);
         });
-    }
-}
-
-fn region_selection(app: &mut PoreDetectionApp, ui: &mut Ui, plot_response: &PlotResponse<()>) {
-    if app.region_selector_start.is_none()
-        && plot_response.response.drag_started()
-        && plot_response
-            .response
-            .dragged_by(egui::PointerButton::Secondary)
-    {
-        app.region_selector_start = plot_response.response.hover_pos();
-    }
-
-    if let Some(hover_pos) = plot_response.response.hover_pos() {
-        app.region_selector_end = Some(hover_pos);
-    }
-
-    if let (Some(start), Some(end)) = (app.region_selector_start, app.region_selector_end) {
-        let rect = epaint::Rect::from_two_pos(start, end);
-        let selected_region =
-            epaint::RectShape::stroke(rect, 0.0, epaint::Stroke::new(2.5, Color32::GREEN));
-        ui.painter().rect_stroke(
-            selected_region.rect,
-            selected_region.rounding,
-            selected_region.stroke,
-        );
-
-        if plot_response.response.drag_stopped() {
-            let start = plot_response.transform.value_from_position(start);
-            let end = plot_response.transform.value_from_position(end);
-
-            app.region_rect_start = Some(start);
-            app.region_rect_end = Some(end);
-
-            app.region_selector_start = None;
-            app.region_selector_end = None;
-        }
     }
 }
