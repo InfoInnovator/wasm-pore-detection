@@ -1,6 +1,5 @@
 use std::sync::mpsc;
 
-use egui::Color32;
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
@@ -46,16 +45,6 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 app.receiver = Some(rx);
 
                                 let selected_img = app.images.selected.unwrap_or(0);
-                                // if let Some(image) = &app.images.images[selected_img] {
-                                //     // analyze_image(
-                                //     //     tx,
-                                //     //     image.clone(),
-                                //     //     app.threshold,
-                                //     //     app.minimal_pore_size,
-                                //     // );
-                                // } else {
-                                //     log::warn!("No image selected");
-                                // }
                                 app.images.images[selected_img].analyze_image(
                                     tx,
                                     app.threshold,
@@ -77,11 +66,6 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 let (tx, rx) = mpsc::channel();
                                 app.receiver = Some(rx);
 
-                                // if let Some(image) =
-                                //     &self.images[self.selected_image.unwrap_or(0)].image
-                                // {
-                                //     self.analyze_image(image.clone(), tx);
-                                // }
                                 let selected_img = app.images.selected.unwrap_or(0);
                                 app.images.images[selected_img].analyze_image(
                                     tx,

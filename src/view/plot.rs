@@ -1,3 +1,5 @@
+use std::sync::mpsc;
+
 use egui::{epaint, Color32, Ui, Vec2};
 use egui_plot::{Line, PlotImage, PlotPoint, PlotPoints, PlotResponse};
 use image::GenericImageView;
@@ -87,6 +89,16 @@ pub fn region_selection(app: &mut PoreDetectionApp, ui: &mut Ui, plot_response: 
 
                 app.images.images[selected_img].region_start = Some(start);
                 app.images.images[selected_img].region_end = Some(end);
+
+                // trigger the image analysis
+                let (tx, rx) = mpsc::channel();
+                app.receiver = Some(rx);
+                let selected_img = app.images.selected.unwrap_or(0);
+                app.images.images[selected_img].analyze_image(
+                    tx,
+                    app.threshold,
+                    app.minimal_pore_size,
+                );
             }
 
             app.region_selector.0 = None;
