@@ -18,7 +18,6 @@ impl ImageData {
     pub fn analyze_image(
         &mut self,
         tx: mpsc::Sender<(Vec<PlotPoint>, f64)>,
-        // image: &DynamicImage,
         threshold: i16,
         minimal_pore_size: i16,
     ) {

@@ -156,6 +156,22 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                         ));
                                     app.images.images[i].image = Some(image.clone());
 
+                                    let (tx, rx) = mpsc::channel();
+                                    app.receiver = Some(rx);
+                                    if app.images.images[i].black_pixels.is_none() {
+                                        app.images.images[i].analyze_image(
+                                            tx,
+                                            app.threshold,
+                                            app.minimal_pore_size,
+                                        );
+                                    } else {
+                                        tx.send((
+                                            app.images.images[i].black_pixels.clone().unwrap(),
+                                            app.images.images[i].density.unwrap(),
+                                        ))
+                                        .unwrap();
+                                    }
+
                                     log::info!("Selected Image: {:?}", app.images.selected);
                                 }
                             });
@@ -184,6 +200,15 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                     ctx,
                                     &image.clone(),
                                 ));
+
+                            let (tx, rx) = mpsc::channel();
+                            app.receiver = Some(rx);
+
+                            app.images.images[0].analyze_image(
+                                tx,
+                                app.threshold,
+                                app.minimal_pore_size,
+                            );
                         }
                     }
                 });
