@@ -1,5 +1,6 @@
 use std::sync::mpsc;
 
+use egui::{Pos2, TextEdit, Vec2};
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
@@ -18,6 +19,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                 .id_salt("options_table")
                 .column(Column::auto())
                 .column(Column::auto())
+                .striped(true)
                 .header(20.0, |mut header| {
                     header.col(|ui| {
                         ui.heading("Name");
@@ -84,13 +86,27 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                 app.images.images[selected_img].region_end = None;
             }
 
-            if ui.button("Apply to Batch").clicked() {
-                log::info!("Apply to Batch");
-            }
-
             if ui.button("Download Results").clicked() {
                 log::info!("Download Results");
+                app.export_window_open = true;
             }
+            egui::Window::new("Export Results")
+                .open(&mut app.export_window_open)
+                .fixed_size(Vec2::new(500.0, 500.0))
+                .default_pos(Pos2::new(
+                    ctx.screen_rect().center().x - 250.0,
+                    ctx.screen_rect().center().y - 250.0,
+                ))
+                .resizable(true)
+                .show(ctx, |ui| {
+                    let mut output_str = app.images.export();
+                    ui.label("Copy the following text and save it to a file.");
+                    ui.add_sized(ui.available_size(), TextEdit::multiline(&mut output_str));
+
+                    if ui.button("Copy").clicked() {
+                        ui.output_mut(|o| o.copied_text = output_str.clone());
+                    }
+                });
 
             if let Some(selected_img) = app.images.selected {
                 if let Some(density) = app.images.images[selected_img].density {
@@ -104,7 +120,6 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
 
             ui.heading("Image List");
 
-            // [TODO] make async so the ui is not blocked
             if let Some(folder_path) = &app.image_paths {
                 // create table with image names
                 TableBuilder::new(ui)
@@ -118,34 +133,36 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                             let path_str = path.file_name().unwrap().to_str().unwrap().to_string();
 
                             body.row(150.0, |mut row| {
+                                row.set_selected(Some(i) == app.images.selected);
+
                                 row.col(|ui| {
                                     ui.image(format!("file://{}", path.to_str().unwrap()));
                                 });
                                 row.col(|ui| {
-                                    let resp = ui.heading(path_str);
+                                    ui.heading(path_str);
 
                                     ui.label(format!(
                                         "Density: {:.5}%",
                                         app.images.images[i].density.unwrap_or(0.0),
                                     ));
-
-                                    if resp.clicked() {
-                                        app.images.selected = Some(i);
-                                        let image = image::open(path).unwrap();
-                                        app.image_to_display = Some(
-                                            model::detection_app::PoreDetectionApp::load_texture(
-                                                ctx, &image,
-                                            ),
-                                        );
-                                        app.images.images[i].image = Some(image.clone());
-
-                                        log::info!("Selected Image: {:?}", app.images.selected);
-                                    }
                                 });
+
+                                if row.response().clicked() {
+                                    app.images.selected = Some(i);
+                                    let image = image::open(path).unwrap();
+                                    app.image_to_display =
+                                        Some(model::detection_app::PoreDetectionApp::load_texture(
+                                            ctx, &image,
+                                        ));
+                                    app.images.images[i].image = Some(image.clone());
+
+                                    log::info!("Selected Image: {:?}", app.images.selected);
+                                }
                             });
                         }
                     });
             } else {
+                // [TODO] make async so the ui is not blocked
                 ui.vertical_centered(|ui| {
                     if ui.button("Open Files").clicked() {
                         let path = FileDialog::new().pick_files();

@@ -18,6 +18,7 @@ pub struct PoreDetectionApp {
     pub receiver: Option<mpsc::Receiver<(Vec<PlotPoint>, f64)>>,
     pub image_paths: Option<Vec<PathBuf>>,
     pub images: Images,
+    pub export_window_open: bool,
 }
 
 impl PoreDetectionApp {
