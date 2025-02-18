@@ -84,6 +84,16 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                 let selected_img = app.images.selected.unwrap_or(0);
                 app.images.images[selected_img].region_start = None;
                 app.images.images[selected_img].region_end = None;
+
+                let (tx, rx) = mpsc::channel();
+                app.receiver = Some(rx);
+
+                let selected_img = app.images.selected.unwrap_or(0);
+                app.images.images[selected_img].analyze_image(
+                    tx,
+                    app.threshold,
+                    app.minimal_pore_size,
+                );
             }
 
             if ui.button("Download Results").clicked() {
