@@ -19,7 +19,8 @@ impl ImageData {
         &mut self,
         tx: mpsc::Sender<(Vec<PlotPoint>, f64)>,
         threshold: i16,
-        minimal_pore_size: i16,
+        minimal_pore_size_low: f32,
+        minimal_pore_size_high: f32,
     ) {
         let image = self.image.clone().unwrap();
         let region_start = self.region_start;
@@ -55,7 +56,8 @@ impl ImageData {
                     let y_end = image.height() - region_end.y as u32;
 
                     if grayscale_thresh.get_pixel(x, y) == &Luma::black()
-                        && labels_to_size[&p[0]] > minimal_pore_size.into()
+                        && labels_to_size[&p[0]] > minimal_pore_size_low as i32
+                        && labels_to_size[&p[0]] < minimal_pore_size_high as i32
                         && x >= region_start.x as u32
                         && x <= region_end.x as u32
                         && y >= y_start
@@ -67,7 +69,8 @@ impl ImageData {
             } else {
                 labels.enumerate_pixels().for_each(|(x, y, p)| {
                     if grayscale_thresh.get_pixel(x, y) == &Luma::black()
-                        && labels_to_size[&p[0]] > minimal_pore_size.into()
+                        && labels_to_size[&p[0]] > minimal_pore_size_low as i32
+                        && labels_to_size[&p[0]] < minimal_pore_size_high as i32
                     {
                         black_pixels.push(PlotPoint::new(x, y));
                     }

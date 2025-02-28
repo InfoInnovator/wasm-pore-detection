@@ -11,7 +11,8 @@ use super::images::Images;
 #[derive(Default)]
 pub struct PoreDetectionApp {
     pub threshold: i16,
-    pub minimal_pore_size: i16,
+    pub minimal_pore_size_low: f32,
+    pub minimal_pore_size_high: f32,
     pub image_to_display: Option<TextureHandle>,
     pub region_selector: (Option<Pos2>, Option<Pos2>),
     pub region: (Option<Pos2>, Option<Pos2>),
@@ -24,7 +25,11 @@ pub struct PoreDetectionApp {
 impl PoreDetectionApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         install_image_loaders(&cc.egui_ctx);
-        Self::default()
+        Self {
+            minimal_pore_size_low: 0.0,
+            minimal_pore_size_high: 1000.0,
+            ..Default::default()
+        }
     }
 
     pub fn load_texture(ctx: &egui::Context, image: &DynamicImage) -> TextureHandle {

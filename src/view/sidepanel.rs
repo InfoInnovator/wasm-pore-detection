@@ -1,6 +1,7 @@
 use std::sync::mpsc;
 
-use egui::{Pos2, TextEdit, Vec2};
+use egui::{DragValue, Pos2, TextEdit, Vec2};
+use egui_double_slider::DoubleSlider;
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
@@ -11,7 +12,7 @@ use crate::{
 
 pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
     egui::SidePanel::new(egui::panel::Side::Left, "sidebar")
-        .resizable(true)
+        .resizable(false)
         .show(ctx, |ui| {
             ui.heading("Options");
 
@@ -50,7 +51,8 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 app.images.images[selected_img].analyze_image(
                                     tx,
                                     app.threshold,
-                                    app.minimal_pore_size,
+                                    app.minimal_pore_size_low,
+                                    app.minimal_pore_size_high,
                                 );
                             }
                         });
@@ -61,10 +63,37 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                         });
                         row.col(|ui| {
                             ui.style_mut().spacing.slider_width = 250.0;
-                            let response =
-                                ui.add(egui::Slider::new(&mut app.minimal_pore_size, 0..=75));
 
-                            if response.changed() {
+                            let response = ui.horizontal(|ui| {
+                                let low_drag_response = ui.add(
+                                    DragValue::new(&mut app.minimal_pore_size_low)
+                                        .speed(0.1)
+                                        .fixed_decimals(0),
+                                );
+
+                                let slider_response = ui.add(
+                                    DoubleSlider::new(
+                                        &mut app.minimal_pore_size_low,
+                                        &mut app.minimal_pore_size_high,
+                                        0.0..=1000.0,
+                                    )
+                                    .width(250.0)
+                                    .separation_distance(1.0),
+                                );
+
+                                let high_drag_response = ui.add(
+                                    DragValue::new(&mut app.minimal_pore_size_high)
+                                        .speed(0.1)
+                                        .fixed_decimals(0),
+                                );
+
+                                (low_drag_response, slider_response, high_drag_response)
+                            });
+
+                            if response.inner.0.changed()
+                                || response.inner.1.changed()
+                                || response.inner.2.changed()
+                            {
                                 let (tx, rx) = mpsc::channel();
                                 app.receiver = Some(rx);
 
@@ -72,7 +101,14 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 app.images.images[selected_img].analyze_image(
                                     tx,
                                     app.threshold,
-                                    app.minimal_pore_size,
+                                    app.minimal_pore_size_low,
+                                    app.minimal_pore_size_high,
+                                );
+
+                                log::info!(
+                                    "min pore size bounds: {} - {}",
+                                    app.minimal_pore_size_low,
+                                    app.minimal_pore_size_high
                                 );
                             }
                         });
@@ -92,7 +128,8 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                 app.images.images[selected_img].analyze_image(
                     tx,
                     app.threshold,
-                    app.minimal_pore_size,
+                    app.minimal_pore_size_low,
+                    app.minimal_pore_size_high,
                 );
             }
 
@@ -114,7 +151,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                     ui.add_sized(ui.available_size(), TextEdit::multiline(&mut output_str));
 
                     if ui.button("Copy").clicked() {
-                        ui.output_mut(|o| o.copied_text = output_str.clone());
+                        ctx.copy_text(output_str);
                     }
                 });
 
@@ -164,6 +201,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                         Some(model::detection_app::PoreDetectionApp::load_texture(
                                             ctx, &image,
                                         ));
+
                                     app.images.images[i].image = Some(image.clone());
 
                                     let (tx, rx) = mpsc::channel();
@@ -172,7 +210,8 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                         app.images.images[i].analyze_image(
                                             tx,
                                             app.threshold,
-                                            app.minimal_pore_size,
+                                            app.minimal_pore_size_low,
+                                            app.minimal_pore_size_high,
                                         );
                                     } else {
                                         tx.send((
@@ -217,7 +256,8 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                             app.images.images[0].analyze_image(
                                 tx,
                                 app.threshold,
-                                app.minimal_pore_size,
+                                app.minimal_pore_size_low,
+                                app.minimal_pore_size_high,
                             );
                         }
                     }

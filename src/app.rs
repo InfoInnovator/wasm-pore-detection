@@ -4,7 +4,7 @@ use crate::{
 };
 
 impl eframe::App for PoreDetectionApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         self.receive_image_data(ctx);
 
         top_panel::display_top_panel(ctx);

@@ -1,6 +1,9 @@
 use std::sync::mpsc;
 
-use egui::{epaint, Color32, Ui, Vec2};
+use egui::{
+    epaint::{self},
+    Color32, Stroke, Ui, Vec2,
+};
 use egui_plot::{Line, PlotImage, PlotPoint, PlotPoints, PlotResponse};
 use image::GenericImageView;
 
@@ -28,7 +31,7 @@ pub fn display_plot(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                         app.images.images[selected_img].region_start,
                         app.images.images[selected_img].region_end,
                     ) {
-                        let rect_plot_points: PlotPoints =
+                        let rect_plot_points: PlotPoints<'_> =
                             egui_plot::PlotPoints::Owned(Vec::from([
                                 rect_start,
                                 PlotPoint::new(rect_end.x, rect_start.y),
@@ -62,12 +65,17 @@ pub fn region_selection(app: &mut PoreDetectionApp, ui: &mut Ui, plot_response: 
 
     if let (Some(start), Some(end)) = (app.region_selector.0, app.region_selector.1) {
         let rect = epaint::Rect::from_two_pos(start, end);
-        let selected_region =
-            epaint::RectShape::stroke(rect, 0.0, epaint::Stroke::new(2.5, Color32::GREEN));
+        let selected_region = epaint::RectShape::stroke(
+            rect,
+            0.0,
+            Stroke::new(2.5, Color32::GREEN),
+            egui::StrokeKind::Middle,
+        );
         ui.painter().rect_stroke(
             selected_region.rect,
-            selected_region.rounding,
+            selected_region.corner_radius,
             selected_region.stroke,
+            selected_region.stroke_kind,
         );
 
         if plot_response.response.drag_stopped() {
@@ -97,7 +105,8 @@ pub fn region_selection(app: &mut PoreDetectionApp, ui: &mut Ui, plot_response: 
                 app.images.images[selected_img].analyze_image(
                     tx,
                     app.threshold,
-                    app.minimal_pore_size,
+                    app.minimal_pore_size_low,
+                    app.minimal_pore_size_high,
                 );
             }
 
