@@ -37,8 +37,19 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                         row.col(|ui| {
                             ui.style_mut().spacing.slider_width = 250.0;
 
-                            let response =
+                            let mut response =
                                 ui.add(egui::Slider::new(&mut app.threshold, 0..=255).step_by(1.0));
+
+                            // use mouse wheel to change slider
+                            if response.hovered() {
+                                let scroll = ui.input(|i| i.smooth_scroll_delta);
+                                if scroll.y > 10.0 || scroll.y < -10.0 {
+                                    app.threshold = (app.threshold as f32 + scroll.y.signum())
+                                        .clamp(0.0, 255.0)
+                                        as i16;
+                                    response.mark_changed();
+                                }
+                            }
 
                             if response.changed() {
                                 // [TODO] use channels differently bc changing the value will create a new channel
