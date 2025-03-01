@@ -11,13 +11,23 @@ use crate::PoreDetectionApp;
 
 pub fn display_plot(ctx: &egui::Context, app: &mut PoreDetectionApp) {
     egui::CentralPanel::default().show(ctx, |ui| {
+        let scroll = ui.input(|i| i.smooth_scroll_delta.y);
+
         let plot_response = egui_plot::Plot::new("plot")
-            .allow_zoom(true)
             .data_aspect(1.0)
             .show_axes(false)
+            .allow_zoom(false)
             .allow_boxed_zoom(false)
+            .allow_scroll(false)
             .show_grid(false)
             .show(ui, |plot_ui| {
+                if scroll != 0.0 {
+                    plot_ui.zoom_bounds_around_hovered(Vec2::new(
+                        (scroll / 100.0).exp(),
+                        (scroll / 100.0).exp(),
+                    ));
+                }
+
                 if let Some(handle) = &app.image_to_display {
                     plot_ui.add(PlotImage::new(
                         handle.id(),
