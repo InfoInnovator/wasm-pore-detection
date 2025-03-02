@@ -32,28 +32,23 @@ impl PoreDetectionApp {
         }
     }
 
-    fn load_texture(&mut self, ctx: &egui::Context, image: &DynamicImage) -> &TextureHandle {
+    fn load_texture(&mut self, ctx: &egui::Context, image: &DynamicImage) {
         let rgba_image = image.to_rgba8();
         let size = [image.width() as _, image.height() as _];
         let pixels: &[u8] = rgba_image.as_raw();
 
-        log::info!("loaded image data");
-
         let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels);
-        log::info!("created color image");
-        let handle: &TextureHandle = self.image_to_display.insert({
+        let _ = self.image_to_display.insert({
             ctx.load_texture(
                 "dynamic_image",
                 color_image,
                 egui::TextureOptions::default(),
             )
         });
-        log::info!("fully loaded texture");
-        handle
     }
 
     pub fn reload_image(&mut self, ctx: &egui::Context, selected_image: Option<usize>) {
-        log::info!("reloading image");
+        self.images.prev_selected = self.images.selected;
 
         let mut selected = 0;
         if let Some(selected_image) = selected_image {
@@ -65,31 +60,21 @@ impl PoreDetectionApp {
 
         let image = image::open(self.images.images[selected].path.clone().unwrap())
             .expect("Could not load image from path");
-        log::info!(
-            "loaded image: {}",
-            self.images.images[selected].path.clone().unwrap().display()
-        );
-
         self.load_texture(ctx, &image);
-        // self.image_to_display = Some(handle);
-
-        log::info!("loaded texture");
 
         let (tx, rx) = mpsc::channel();
         self.receiver = Some(rx);
 
-        log::info!("analyzing image");
         self.images.images[selected].analyze_image(
             tx,
             self.threshold,
             self.minimal_pore_size_low,
             self.minimal_pore_size_high,
         );
-        log::info!("analyzed image");
     }
 
     pub fn receive_image_data(&mut self, ctx: &egui::Context) {
-        // [TODO] move this to a another thread bc painting blocks the main thread for a short time
+        // [TODO] move this to another thread bc painting blocks the main thread for a short time
         // receive from channel
         if let Some(rec) = &self.receiver {
             if let Ok((black_pixels, density)) = rec.try_recv() {
@@ -128,10 +113,7 @@ impl PoreDetectionApp {
                         }
                     }
 
-                    self.image_to_display = Some(
-                        self.load_texture(ctx, &DynamicImage::ImageRgba8(image))
-                            .clone(),
-                    );
+                    self.load_texture(ctx, &DynamicImage::ImageRgba8(image));
                 }
             }
         }

@@ -4,6 +4,7 @@ use super::image_data::ImageData;
 pub struct Images {
     pub images: Vec<ImageData>,
     pub selected: Option<usize>,
+    pub prev_selected: Option<usize>,
 }
 
 impl Images {
