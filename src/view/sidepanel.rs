@@ -1,6 +1,6 @@
 use std::sync::mpsc;
 
-use egui::{DragValue, Pos2, TextEdit, Vec2};
+use egui::DragValue;
 use egui_double_slider::DoubleSlider;
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
@@ -150,20 +150,89 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
             }
             egui::Window::new("Export Results")
                 .open(&mut app.export_window_open)
-                .fixed_size(Vec2::new(500.0, 500.0))
-                .default_pos(Pos2::new(
-                    ctx.screen_rect().center().x - 250.0,
-                    ctx.screen_rect().center().y - 250.0,
-                ))
-                .resizable(true)
                 .show(ctx, |ui| {
-                    let mut output_str = app.images.export();
-                    ui.label("Copy the following text and save it to a file.");
-                    ui.add_sized(ui.available_size(), TextEdit::multiline(&mut output_str));
+                    let result_table = TableBuilder::new(ui)
+                        .striped(true)
+                        .resizable(true)
+                        .column(Column::initial(150.0).clip(true))
+                        .column(Column::initial(100.0))
+                        .column(Column::initial(100.0))
+                        .column(Column::initial(150.0))
+                        .column(Column::initial(150.0))
+                        .column(Column::initial(150.0))
+                        .column(Column::initial(150.0).clip(true))
+                        .header(30.0, |mut header| {
+                            header.col(|ui| {
+                                ui.heading("Filename");
+                            });
+                            header.col(|ui| {
+                                ui.heading("Density");
+                            });
+                            header.col(|ui| {
+                                ui.heading("Threshold");
+                            });
+                            header.col(|ui| {
+                                ui.heading("Lower Pore Size");
+                            });
+                            header.col(|ui| {
+                                ui.heading("Upper Pore Size");
+                            });
+                            header.col(|ui| {
+                                ui.heading("Selected Region");
+                            });
+                            header.col(|ui| {
+                                ui.heading("File Path");
+                            });
+                        });
 
-                    if ui.button("Copy").clicked() {
-                        ctx.copy_text(output_str);
-                    }
+                    result_table.body(|body| {
+                        body.rows(25.0, app.images.images.len(), |mut row| {
+                            let current_image = &app.images.images[row.index()];
+
+                            row.col(|ui| {
+                                if let Some(path) = &current_image.path {
+                                    ui.label(path.file_name().unwrap().to_str().unwrap());
+                                } else {
+                                    ui.label("No File");
+                                }
+                            });
+                            row.col(|ui| {
+                                if let Some(density) = current_image.density {
+                                    ui.label(format!("{:.5}%", density));
+                                } else {
+                                    ui.label("No Density");
+                                }
+                            });
+                            row.col(|ui| {
+                                ui.label(format!("{}", app.threshold));
+                            });
+                            row.col(|ui| {
+                                ui.label(format!("{:.0}", app.minimal_pore_size_low));
+                            });
+                            row.col(|ui| {
+                                ui.label(format!("{:.0}", app.minimal_pore_size_high));
+                            });
+                            row.col(|ui| {
+                                if let (Some(start), Some(end)) =
+                                    (current_image.region_start, current_image.region_end)
+                                {
+                                    ui.label(format!(
+                                        "({:.2}, {:.2}) - ({:.2}, {:.2})",
+                                        start.x, start.y, end.x, end.y
+                                    ));
+                                } else {
+                                    ui.label("No Region");
+                                }
+                            });
+                            row.col(|ui| {
+                                if let Some(path) = &current_image.path {
+                                    ui.label(path.to_str().unwrap());
+                                } else {
+                                    ui.label("No File");
+                                }
+                            });
+                        });
+                    });
                 });
 
             if let Some(selected_img) = app.images.selected {
