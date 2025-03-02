@@ -11,7 +11,7 @@ use crate::PoreDetectionApp;
 
 pub fn display_plot(ctx: &egui::Context, app: &mut PoreDetectionApp) {
     egui::CentralPanel::default().show(ctx, |ui| {
-        let scroll = ui.input(|i| i.smooth_scroll_delta.y);
+        let (hover_pos, scroll) = ui.input(|i| (i.pointer.hover_pos(), i.smooth_scroll_delta.y));
 
         let plot_response = egui_plot::Plot::new("plot")
             .data_aspect(1.0)
@@ -21,11 +21,16 @@ pub fn display_plot(ctx: &egui::Context, app: &mut PoreDetectionApp) {
             .allow_scroll(false)
             .show_grid(false)
             .show(ui, |plot_ui| {
-                if scroll != 0.0 {
-                    plot_ui.zoom_bounds_around_hovered(Vec2::new(
-                        (scroll / 100.0).exp(),
-                        (scroll / 100.0).exp(),
-                    ));
+                if let Some(hover_pos) = hover_pos {
+                    if plot_ui.response().rect.contains(hover_pos)
+                        && scroll != 0.0
+                        && !app.export_window_open
+                    {
+                        plot_ui.zoom_bounds_around_hovered(Vec2::new(
+                            (scroll / 100.0).exp(),
+                            (scroll / 100.0).exp(),
+                        ));
+                    }
                 }
 
                 if let Some(handle) = &app.image_to_display {
