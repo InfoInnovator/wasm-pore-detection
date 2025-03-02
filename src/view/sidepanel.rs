@@ -1,14 +1,9 @@
-use std::sync::mpsc;
-
 use egui::DragValue;
 use egui_double_slider::DoubleSlider;
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
-use crate::{
-    model::{self, image_data::ImageData},
-    PoreDetectionApp,
-};
+use crate::{model::image_data::ImageData, PoreDetectionApp};
 
 pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
     egui::SidePanel::new(egui::panel::Side::Left, "sidebar")
@@ -55,16 +50,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 // [TODO] use channels differently bc changing the value will create a new channel
                                 //        and the old receiver will be dropped, so the thread is sending on a closed
                                 //        channel
-                                let (tx, rx) = mpsc::channel();
-                                app.receiver = Some(rx);
-
-                                let selected_img = app.images.selected.unwrap_or(0);
-                                app.images.images[selected_img].analyze_image(
-                                    tx,
-                                    app.threshold,
-                                    app.minimal_pore_size_low,
-                                    app.minimal_pore_size_high,
-                                );
+                                app.reload_image(ctx, app.images.selected);
                             }
                         });
                     });
@@ -105,16 +91,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 || response.inner.1.changed()
                                 || response.inner.2.changed()
                             {
-                                let (tx, rx) = mpsc::channel();
-                                app.receiver = Some(rx);
-
-                                let selected_img = app.images.selected.unwrap_or(0);
-                                app.images.images[selected_img].analyze_image(
-                                    tx,
-                                    app.threshold,
-                                    app.minimal_pore_size_low,
-                                    app.minimal_pore_size_high,
-                                );
+                                app.reload_image(ctx, app.images.selected);
 
                                 log::info!(
                                     "min pore size bounds: {} - {}",
@@ -132,16 +109,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                 app.images.images[selected_img].region_start = None;
                 app.images.images[selected_img].region_end = None;
 
-                let (tx, rx) = mpsc::channel();
-                app.receiver = Some(rx);
-
-                let selected_img = app.images.selected.unwrap_or(0);
-                app.images.images[selected_img].analyze_image(
-                    tx,
-                    app.threshold,
-                    app.minimal_pore_size_low,
-                    app.minimal_pore_size_high,
-                );
+                app.reload_image(ctx, app.images.selected);
             }
 
             if ui.button("Download Results").clicked() {
@@ -247,7 +215,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
 
             ui.heading("Image List");
 
-            if let Some(folder_path) = &app.image_paths {
+            if let Some(folder_path) = &app.image_paths.clone() {
                 // create table with image names
                 TableBuilder::new(ui)
                     .id_salt("image_list")
@@ -275,32 +243,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 });
 
                                 if row.response().clicked() {
-                                    app.images.selected = Some(i);
-                                    let image = image::open(path).unwrap();
-                                    app.image_to_display =
-                                        Some(model::detection_app::PoreDetectionApp::load_texture(
-                                            ctx, &image,
-                                        ));
-
-                                    app.images.images[i].image = Some(image.clone());
-
-                                    let (tx, rx) = mpsc::channel();
-                                    app.receiver = Some(rx);
-                                    if app.images.images[i].black_pixels.is_none() {
-                                        app.images.images[i].analyze_image(
-                                            tx,
-                                            app.threshold,
-                                            app.minimal_pore_size_low,
-                                            app.minimal_pore_size_high,
-                                        );
-                                    } else {
-                                        tx.send((
-                                            app.images.images[i].black_pixels.clone().unwrap(),
-                                            app.images.images[i].density.unwrap(),
-                                        ))
-                                        .unwrap();
-                                    }
-
+                                    app.reload_image(ctx, Some(i));
                                     log::info!("Selected Image: {:?}", app.images.selected);
                                 }
                             });
@@ -315,6 +258,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                             for path in &paths {
                                 app.images.images.push(ImageData {
                                     path: Some(path.to_path_buf()),
+                                    image: Some(image::open(path).unwrap()),
                                     ..Default::default()
                                 });
                             }
@@ -322,23 +266,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                             app.images.selected = Some(0);
                             app.image_paths = Some(paths.clone());
 
-                            let image = image::open(&paths[0]).unwrap();
-                            app.images.images[0].image = Some(image.clone());
-                            app.image_to_display =
-                                Some(model::detection_app::PoreDetectionApp::load_texture(
-                                    ctx,
-                                    &image.clone(),
-                                ));
-
-                            let (tx, rx) = mpsc::channel();
-                            app.receiver = Some(rx);
-
-                            app.images.images[0].analyze_image(
-                                tx,
-                                app.threshold,
-                                app.minimal_pore_size_low,
-                                app.minimal_pore_size_high,
-                            );
+                            app.reload_image(ctx, None);
                         }
                     }
                 });

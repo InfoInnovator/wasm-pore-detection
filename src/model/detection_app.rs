@@ -32,17 +32,60 @@ impl PoreDetectionApp {
         }
     }
 
-    pub fn load_texture(ctx: &egui::Context, image: &DynamicImage) -> TextureHandle {
+    fn load_texture(&mut self, ctx: &egui::Context, image: &DynamicImage) -> &TextureHandle {
         let rgba_image = image.to_rgba8();
         let size = [image.width() as _, image.height() as _];
-        let pixels: &[u8] = &rgba_image.into_raw();
+        let pixels: &[u8] = rgba_image.as_raw();
+
+        log::info!("loaded image data");
 
         let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels);
-        ctx.load_texture(
-            "dynamic_image",
-            color_image,
-            egui::TextureOptions::default(),
-        )
+        log::info!("created color image");
+        let handle: &TextureHandle = self.image_to_display.insert({
+            ctx.load_texture(
+                "dynamic_image",
+                color_image,
+                egui::TextureOptions::default(),
+            )
+        });
+        log::info!("fully loaded texture");
+        handle
+    }
+
+    pub fn reload_image(&mut self, ctx: &egui::Context, selected_image: Option<usize>) {
+        log::info!("reloading image");
+
+        let mut selected = 0;
+        if let Some(selected_image) = selected_image {
+            self.images.selected = Some(selected_image);
+            selected = selected_image;
+        } else {
+            self.images.selected = Some(0);
+        }
+
+        let image = image::open(self.images.images[selected].path.clone().unwrap())
+            .expect("Could not load image from path");
+        log::info!(
+            "loaded image: {}",
+            self.images.images[selected].path.clone().unwrap().display()
+        );
+
+        self.load_texture(ctx, &image);
+        // self.image_to_display = Some(handle);
+
+        log::info!("loaded texture");
+
+        let (tx, rx) = mpsc::channel();
+        self.receiver = Some(rx);
+
+        log::info!("analyzing image");
+        self.images.images[selected].analyze_image(
+            tx,
+            self.threshold,
+            self.minimal_pore_size_low,
+            self.minimal_pore_size_high,
+        );
+        log::info!("analyzed image");
     }
 
     pub fn receive_image_data(&mut self, ctx: &egui::Context) {
@@ -85,8 +128,10 @@ impl PoreDetectionApp {
                         }
                     }
 
-                    self.image_to_display =
-                        Some(Self::load_texture(ctx, &DynamicImage::ImageRgba8(image)));
+                    self.image_to_display = Some(
+                        self.load_texture(ctx, &DynamicImage::ImageRgba8(image))
+                            .clone(),
+                    );
                 }
             }
         }
