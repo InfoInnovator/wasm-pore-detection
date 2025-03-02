@@ -20,6 +20,7 @@ pub struct PoreDetectionApp {
     pub image_paths: Option<Vec<PathBuf>>,
     pub images: Images,
     pub export_window_open: bool,
+    pub shortcut_window_open: bool,
 }
 
 impl PoreDetectionApp {
