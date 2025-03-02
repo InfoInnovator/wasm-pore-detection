@@ -6,6 +6,8 @@ use egui_plot::PlotPoint;
 use image::DynamicImage;
 use imageproc::drawing::Canvas;
 
+use crate::view::export_window::ExportDecimalFormat;
+
 use super::images::Images;
 
 #[derive(Default)]
@@ -21,6 +23,7 @@ pub struct PoreDetectionApp {
     pub images: Images,
     pub export_window_open: bool,
     pub shortcut_window_open: bool,
+    pub export_decimal_format: ExportDecimalFormat,
 }
 
 impl PoreDetectionApp {
