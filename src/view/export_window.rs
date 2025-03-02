@@ -112,13 +112,13 @@ pub fn display_export_window(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                     });
 
                 if ui.button("Export Excel").clicked() {
-                    app.images.export();
+                    app.images.export(app.export_decimal_format.clone());
                 }
             })
         });
 }
 
-#[derive(Default, PartialEq)]
+#[derive(Default, PartialEq, Clone)]
 pub enum ExportDecimalFormat {
     #[default]
     Dot,

@@ -1,6 +1,8 @@
 use egui_plot::PlotPoint;
 use rust_xlsxwriter::{workbook::Workbook, Table, TableColumn};
 
+use crate::view::export_window::ExportDecimalFormat;
+
 use super::image_data::ImageData;
 
 #[derive(Default)]
@@ -11,7 +13,7 @@ pub struct Images {
 }
 
 impl Images {
-    pub fn export(&self) {
+    pub fn export(&self, export_num_type: ExportDecimalFormat) {
         let mut workbook = Workbook::new();
         let worksheet = workbook.add_worksheet();
 
@@ -24,7 +26,14 @@ impl Images {
                 .unwrap()
                 .to_str()
                 .unwrap();
-            let density = image.density.unwrap_or(0.0);
+
+            let density = match export_num_type {
+                ExportDecimalFormat::Dot => format!("{:.5}", image.density.unwrap_or(0.0)),
+                ExportDecimalFormat::Comma => {
+                    format!("{:.5}", image.density.unwrap_or(0.0)).replace(".", ",")
+                }
+            };
+
             let threshold = image.threshold;
             let start = image.region_start.unwrap_or(PlotPoint::new(0.0, 0.0));
             let end = image.region_end.unwrap_or(PlotPoint::new(0.0, 0.0));
