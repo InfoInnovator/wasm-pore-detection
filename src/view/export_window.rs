@@ -62,13 +62,13 @@ pub fn display_export_window(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                         }
                     });
                     row.col(|ui| {
-                        ui.label(format!("{}", app.threshold));
+                        ui.label(format!("{}", current_image.threshold));
                     });
                     row.col(|ui| {
-                        ui.label(format!("{:.0}", app.minimal_pore_size_low));
+                        ui.label(format!("{:.0}", current_image.minimal_pore_size_low));
                     });
                     row.col(|ui| {
-                        ui.label(format!("{:.0}", app.minimal_pore_size_high));
+                        ui.label(format!("{:.0}", current_image.minimal_pore_size_high));
                     });
                     row.col(|ui| {
                         if let (Some(start), Some(end)) =

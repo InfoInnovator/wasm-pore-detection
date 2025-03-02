@@ -32,15 +32,25 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                         row.col(|ui| {
                             ui.style_mut().spacing.slider_width = 250.0;
 
-                            let mut response =
-                                ui.add(egui::Slider::new(&mut app.threshold, 0..=255).step_by(1.0));
+                            if app.images.selected.is_none() {
+                                return;
+                            }
+
+                            let current_image =
+                                &mut app.images.images[app.images.selected.unwrap_or(0)];
+
+                            let mut response = ui.add(
+                                egui::Slider::new(&mut current_image.threshold, 0..=255)
+                                    .step_by(1.0),
+                            );
 
                             // use mouse wheel to change slider
                             if response.hovered() {
                                 let scroll = ui.input(|i| i.smooth_scroll_delta);
                                 if scroll.y > 10.0 || scroll.y < -10.0 {
-                                    app.threshold = (app.threshold as f32 + scroll.y.signum())
-                                        .clamp(0.0, 255.0)
+                                    current_image.threshold = (current_image.threshold as f32
+                                        + scroll.y.signum())
+                                    .clamp(0.0, 255.0)
                                         as i16;
                                     response.mark_changed();
                                 }
@@ -61,17 +71,24 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                         row.col(|ui| {
                             ui.style_mut().spacing.slider_width = 250.0;
 
+                            if app.images.selected.is_none() {
+                                return;
+                            }
+
+                            let selected_i = app.images.selected.unwrap_or(0);
+                            let current_image = &mut app.images.images[selected_i].clone();
+
                             let response = ui.horizontal(|ui| {
                                 let low_drag_response = ui.add(
-                                    DragValue::new(&mut app.minimal_pore_size_low)
+                                    DragValue::new(&mut current_image.minimal_pore_size_low)
                                         .speed(0.1)
                                         .fixed_decimals(0),
                                 );
 
                                 let slider_response = ui.add(
                                     DoubleSlider::new(
-                                        &mut app.minimal_pore_size_low,
-                                        &mut app.minimal_pore_size_high,
+                                        &mut current_image.minimal_pore_size_low,
+                                        &mut current_image.minimal_pore_size_high,
                                         0.0..=1000.0,
                                     )
                                     .width(250.0)
@@ -79,7 +96,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 );
 
                                 let high_drag_response = ui.add(
-                                    DragValue::new(&mut app.minimal_pore_size_high)
+                                    DragValue::new(&mut current_image.minimal_pore_size_high)
                                         .speed(0.1)
                                         .fixed_decimals(0),
                                 );
@@ -91,12 +108,13 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 || response.inner.1.changed()
                                 || response.inner.2.changed()
                             {
+                                app.images.images[selected_i] = current_image.clone();
                                 app.reload_image(ctx, app.images.selected);
 
                                 log::info!(
                                     "min pore size bounds: {} - {}",
-                                    app.minimal_pore_size_low,
-                                    app.minimal_pore_size_high
+                                    current_image.minimal_pore_size_low,
+                                    current_image.minimal_pore_size_high
                                 );
                             }
                         });
@@ -112,8 +130,8 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                 app.reload_image(ctx, app.images.selected);
             }
 
-            if ui.button("Download Results").clicked() {
-                log::info!("Download Results");
+            if ui.button("Export Results").clicked() {
+                log::info!("Export Results");
                 app.export_window_open = true;
             }
 

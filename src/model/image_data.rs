@@ -4,7 +4,7 @@ use egui_plot::PlotPoint;
 use image::{DynamicImage, Luma};
 use imageproc::definitions::{HasBlack, HasWhite};
 
-#[derive(Default)]
+#[derive(Clone)]
 pub struct ImageData {
     pub path: Option<PathBuf>,
     pub image: Option<DynamicImage>,
@@ -12,19 +12,35 @@ pub struct ImageData {
     pub black_pixels: Option<Vec<PlotPoint>>,
     pub region_start: Option<PlotPoint>,
     pub region_end: Option<PlotPoint>,
+    pub threshold: i16,
+    pub minimal_pore_size_low: f32,
+    pub minimal_pore_size_high: f32,
+}
+
+impl Default for ImageData {
+    fn default() -> Self {
+        Self {
+            path: Default::default(),
+            image: Default::default(),
+            density: Default::default(),
+            black_pixels: Default::default(),
+            region_start: Default::default(),
+            region_end: Default::default(),
+            threshold: Default::default(),
+            minimal_pore_size_low: 0.0,
+            minimal_pore_size_high: 1000.0,
+        }
+    }
 }
 
 impl ImageData {
-    pub fn analyze_image(
-        &mut self,
-        tx: mpsc::Sender<(Vec<PlotPoint>, f64)>,
-        threshold: i16,
-        minimal_pore_size_low: f32,
-        minimal_pore_size_high: f32,
-    ) {
+    pub fn analyze_image(&mut self, tx: mpsc::Sender<(Vec<PlotPoint>, f64)>) {
         let image = self.image.clone().unwrap();
         let region_start = self.region_start;
         let region_end = self.region_end;
+        let threshold = self.threshold;
+        let minimal_pore_size_low = self.minimal_pore_size_low;
+        let minimal_pore_size_high = self.minimal_pore_size_high;
 
         std::thread::spawn(move || {
             let grayscale = image.grayscale().to_luma8();
