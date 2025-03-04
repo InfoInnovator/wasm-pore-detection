@@ -1,40 +1,46 @@
-# eframe template
+# WASM Pore Detection
 
-[![dependency status](https://deps.rs/repo/github/emilk/eframe_template/status.svg)](https://deps.rs/repo/github/emilk/eframe_template)
-[![Build Status](https://github.com/emilk/eframe_template/workflows/CI/badge.svg)](https://github.com/emilk/eframe_template/actions?workflow=CI)
+The Pore Detection is a program to analyze the density of cross section images.
 
-This is a template repo for [eframe](https://github.com/emilk/egui/tree/master/crates/eframe), a framework for writing apps using [egui](https://github.com/emilk/egui/).
+![Showcase Screenshot](./assets/showcase_screenshot.webp)
 
-The goal is for this to be the simplest way to get started writing a GUI app in Rust.
-
-You can compile your app natively or for the web, and share it using Github Pages.
+This Program can be used to analyze images of cross sections.
+You can select a threshold and a min/max range of the pore size. This works by converting the image to grayscale.
+Then all grey values are converted to black or white according to the given threshold. Then all black pixels are
+counted. Each "group" of black pixels is then quantified. If the size of this group is not within the chosen
+minimal pore size, its not used for the density analysis. All other pixels are colored green and shown on the screen.
 
 ## Getting started
 
-Start by clicking "Use this template" at https://github.com/emilk/eframe_template/ or follow [these instructions](https://docs.github.com/en/free-pro-team@latest/github/creating-cloning-and-archiving-repositories/creating-a-repository-from-a-template).
+Start by either downloading a released binary from the right hand side or head down to the [Development Guide](#development).
 
-Change the name of the crate: Choose a good name for your project, and change the name to it in:
-* `Cargo.toml`
-    * Change the `package.name` from `eframe_template` to `your_crate`.
-    * Change the `package.authors`
-* `main.rs`
-    * Change `eframe_template::TemplateApp` to `your_crate::TemplateApp`
-* `index.html`
-    * Change the `<title>eframe template</title>` to `<title>your_crate</title>`. optional.
-* `assets/sw.js`
-  * Change the `'./eframe_template.js'` to `./your_crate.js` (in `filesToCache` array)
-  * Change the `'./eframe_template_bg.wasm'` to `./your_crate_bg.wasm` (in `filesToCache` array)
+When you have started the program you can click on `Open Files` under the `Image List` section where you can select one or multiple
+images to load.
+When the images are loaded you can select one from the list and start changing the options above the `Image List`.
 
-Alternatively, you can run `fill_template.sh` which will ask for the needed names and email and perform the above patches for you. This is particularly useful if you clone this repository outside GitHub and hence cannot make use of its
-templating function.
+## Features
 
-### Learning about egui
++ Threshold: Change the threshold for the grayscale image.
++ Minimal Pore Size: This selects the lower/upper bounds for the pixel group size of the pores. Each "group" (connected by at least a single pixel) is quantified. If the number of pixels in this group is outside of the selected range, its not shown as a green pixel and therefore not used for the density analysis.
++ Zoom: Use your mouse wheel to zoom in and out. A double left click will reset the zoom.
++ Region Selection: Drag with your right mouse button to create a region for the analysis. You can reset this region with the button `Reset Region` under `Options`.
++ Density Analysis: This happens as soon as the image is loaded. Its also retriggered if you select a new threshold, pore size or create/reset the selected region. For the density the number of green pixels is divided by the number of total pixels of the image. If the threshold is too high, all pixels would become green, but a decent image size and the upper limit pore size of 1000 filters this out. So there are no longer any pixels displayed in green.
++ Export Results: This opens a new window with a table displaying all loaded images and the results of the analysis. You can then export this to an Excel table for further investigation. The file dialog is still missing. The Excel file is saved where the program was started from and has the name `demo.xlsx`. The Drop down menu for selecting the delimiter for the decimals is also not working.
 
-`src/app.rs` contains a simple example app. This is just to give some inspiration - most of it can be removed if you like.
+### Shortcuts
 
-The official egui docs are at <https://docs.rs/egui>. If you prefer watching a video introduction, check out <https://www.youtube.com/watch?v=NtUkr_z7l84>. For inspiration, check out the [the egui web demo](https://emilk.github.io/egui/index.html) and follow the links in it to its source code.
+You can use the `Left/Right Arrow` Keys to jump to the next/previous image in the list. If you hit `Enter` the selected region from the previous image is applied to the new one.
 
-### Testing locally
+
+## Development
+
+Although the title contains WASM, this project is not so WASM yet.
+I used the [eframe_template](https://github.com/emilk/eframe_template) to create this project but in the process
+of creating some features for this program i discovered that not everything supported on native platforms is available
+for WebAssembly (like `threads`). So i gave up on this part (at least for now). This remains a planned feature and will happen
+as soon as i find the time for this.
+
+For the native development:
 
 Make sure you are using the latest version of stable rust by running `rustup update`.
 
@@ -48,40 +54,3 @@ On Fedora Rawhide you need to run:
 
 `dnf install clang clang-devel clang-tools-extra libxkbcommon-devel pkg-config openssl-devel libxcb-devel gtk3-devel atk fontconfig-devel`
 
-### Web Locally
-
-You can compile your app to [WASM](https://en.wikipedia.org/wiki/WebAssembly) and publish it as a web page.
-
-We use [Trunk](https://trunkrs.dev/) to build for web target.
-1. Install the required target with `rustup target add wasm32-unknown-unknown`.
-2. Install Trunk with `cargo install --locked trunk`.
-3. Run `trunk serve` to build and serve on `http://127.0.0.1:8080`. Trunk will rebuild automatically if you edit the project.
-4. Open `http://127.0.0.1:8080/index.html#dev` in a browser. See the warning below.
-
-> `assets/sw.js` script will try to cache our app, and loads the cached version when it cannot connect to server allowing your app to work offline (like PWA).
-> appending `#dev` to `index.html` will skip this caching, allowing us to load the latest builds during development.
-
-### Web Deploy
-1. Just run `trunk build --release`.
-2. It will generate a `dist` directory as a "static html" website
-3. Upload the `dist` directory to any of the numerous free hosting websites including [GitHub Pages](https://docs.github.com/en/free-pro-team@latest/github/working-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
-4. we already provide a workflow that auto-deploys our app to GitHub pages if you enable it.
-> To enable Github Pages, you need to go to Repository -> Settings -> Pages -> Source -> set to `gh-pages` branch and `/` (root).
->
-> If `gh-pages` is not available in `Source`, just create and push a branch called `gh-pages` and it should be available.
->
-> If you renamed the `main` branch to something else (say you re-initialized the repository with `master` as the initial branch), be sure to edit the github workflows `.github/workflows/pages.yml` file to reflect the change
-> ```yml
-> on:
->   push:
->     branches:
->       - <branch name>
-> ```
-
-You can test the template app at <https://emilk.github.io/eframe_template/>.
-
-## Updating egui
-
-As of 2023, egui is in active development with frequent releases with breaking changes. [eframe_template](https://github.com/emilk/eframe_template/) will be updated in lock-step to always use the latest version of egui.
-
-When updating `egui` and `eframe` it is recommended you do so one version at the time, and read about the changes in [the egui changelog](https://github.com/emilk/egui/blob/master/CHANGELOG.md) and [eframe changelog](https://github.com/emilk/egui/blob/master/crates/eframe/CHANGELOG.md).
