@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Malte Sparenborg <malte.sparenborg@protonmail.com>"]
 edition = "2021"
 include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
-rust-version = "1.81"
+rust-version = "1.82"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -12,7 +12,13 @@ targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [dependencies]
 egui = "0.31"
-eframe = { version = "0.31", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "wayland"] }
+eframe = { version = "0.31", default-features = false, features = [
+    "accesskit",
+    "default_fonts",
+    "glow",
+    "persistence",
+    "wayland",
+] }
 log = "0.4"
 
 # You only need serde if you want app persistence:
