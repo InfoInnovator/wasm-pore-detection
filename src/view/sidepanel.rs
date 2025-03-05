@@ -89,7 +89,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                     DoubleSlider::new(
                                         &mut current_image.minimal_pore_size_low,
                                         &mut current_image.minimal_pore_size_high,
-                                        0.0..=1000.0,
+                                        0.0..=100000.0,
                                     )
                                     .width(250.0)
                                     .separation_distance(1.0),
