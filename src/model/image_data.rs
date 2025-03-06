@@ -31,7 +31,7 @@ impl Default for ImageData {
             region_end: Default::default(),
             threshold: Default::default(),
             minimal_pore_size_low: 0.0,
-            minimal_pore_size_high: 1000.0,
+            minimal_pore_size_high: 10000.0,
         }
     }
 }
