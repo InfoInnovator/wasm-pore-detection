@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, sync::mpsc};
+use std::{path::PathBuf, sync::mpsc};
 
 use egui::TextureHandle;
 use egui_plot::PlotPoint;

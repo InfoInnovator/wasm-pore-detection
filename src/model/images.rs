@@ -1,4 +1,5 @@
 use egui_plot::PlotPoint;
+use rfd::FileDialog;
 use rust_xlsxwriter::{workbook::Workbook, Table, TableColumn};
 
 use crate::view::export_window::ExportDecimalFormat;
@@ -73,8 +74,11 @@ impl Images {
         worksheet
             .add_table(0, 0, self.images.len().try_into().unwrap(), 6, &table)
             .unwrap();
-
         worksheet.autofit();
-        workbook.save("demo.xlsx").unwrap();
+
+        let path = FileDialog::new().add_filter("Excel", &["xlsx"]).save_file();
+        if let Some(path) = path {
+            workbook.save(path).unwrap();
+        }
     }
 }
