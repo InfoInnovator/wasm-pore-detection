@@ -61,10 +61,10 @@ impl ImageData {
             );
 
             // count the pixels for each group/label
-            let mut labels_to_size: HashMap<u32, i32> = HashMap::new();
+            let num_labels = labels.iter().max().unwrap_or(&0);
+            let mut labels_to_size = vec![0; *num_labels as usize + 1];
             labels.enumerate_pixels().for_each(|(_, _, p)| {
-                let count = labels_to_size.entry(p[0]).or_insert(0);
-                *count += 1;
+                labels_to_size[p[0] as usize] += 1;
             });
 
             // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
@@ -75,8 +75,8 @@ impl ImageData {
                     let y_end = image.height() - region_end.y as u32;
 
                     if grayscale_thresh.get_pixel(x, y) == &Luma::black()
-                        && labels_to_size[&p[0]] > minimal_pore_size_low as i32
-                        && labels_to_size[&p[0]] < minimal_pore_size_high as i32
+                        && labels_to_size[p[0] as usize] > minimal_pore_size_low as i32
+                        && labels_to_size[p[0] as usize] < minimal_pore_size_high as i32
                         && x >= region_start.x as u32
                         && x <= region_end.x as u32
                         && y >= y_start
@@ -88,8 +88,8 @@ impl ImageData {
             } else {
                 labels.enumerate_pixels().for_each(|(x, y, p)| {
                     if grayscale_thresh.get_pixel(x, y) == &Luma::black()
-                        && labels_to_size[&p[0]] > minimal_pore_size_low as i32
-                        && labels_to_size[&p[0]] < minimal_pore_size_high as i32
+                        && labels_to_size[p[0] as usize] > minimal_pore_size_low as i32
+                        && labels_to_size[p[0] as usize] < minimal_pore_size_high as i32
                     {
                         black_pixels.push(PlotPoint::new(x, y));
                     }
