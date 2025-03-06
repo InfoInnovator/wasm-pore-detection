@@ -11,6 +11,11 @@ pub fn display_top_panel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                         ui.close_menu();
                     }
 
+                    if ui.button("Debug").clicked() {
+                        app.debug_window_open = true;
+                        ui.close_menu();
+                    }
+
                     if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }

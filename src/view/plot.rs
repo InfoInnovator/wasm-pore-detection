@@ -37,6 +37,35 @@ pub fn display_plot(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                         PlotPoint::new(handle.size_vec2().x / 2.0, handle.size_vec2().y / 2.0),
                         Vec2::new(handle.size_vec2().x, handle.size_vec2().y),
                     ));
+
+                    if let Some(grayscale_debug_handle) = &app.debug_info.grayscale_handle {
+                        plot_ui.add(PlotImage::new(
+                            grayscale_debug_handle.id(),
+                            PlotPoint::new(
+                                handle.size_vec2().x + grayscale_debug_handle.size_vec2().x / 2.0,
+                                grayscale_debug_handle.size_vec2().y / 2.0,
+                            ),
+                            Vec2::new(
+                                grayscale_debug_handle.size_vec2().x,
+                                grayscale_debug_handle.size_vec2().y,
+                            ),
+                        ));
+                    }
+
+                    if let Some(grayscale_thresh_handle) = &app.debug_info.grayscale_thresh_handle {
+                        plot_ui.add(PlotImage::new(
+                            grayscale_thresh_handle.id(),
+                            PlotPoint::new(
+                                (handle.size_vec2().x * 2.0)
+                                    + grayscale_thresh_handle.size_vec2().x / 2.0,
+                                grayscale_thresh_handle.size_vec2().y / 2.0,
+                            ),
+                            Vec2::new(
+                                grayscale_thresh_handle.size_vec2().x,
+                                grayscale_thresh_handle.size_vec2().y,
+                            ),
+                        ));
+                    }
                 }
 
                 if let Some(selected_img) = app.images.selected {

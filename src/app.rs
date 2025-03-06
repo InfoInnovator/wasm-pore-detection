@@ -1,6 +1,6 @@
 use crate::{
     model::detection_app::PoreDetectionApp,
-    view::{export_window, plot, shortcut_window, sidepanel, top_panel},
+    view::{debug_window, export_window, plot, shortcut_window, sidepanel, top_panel},
 };
 
 impl eframe::App for PoreDetectionApp {
@@ -44,6 +44,8 @@ impl eframe::App for PoreDetectionApp {
                     self.reload_image(self.images.selected);
                 }
             }
+        } else if ctx.input(|i| i.key_pressed(egui::Key::D)) {
+            self.debug_window_open = !self.debug_window_open;
         }
 
         top_panel::display_top_panel(ctx, self);
@@ -53,6 +55,8 @@ impl eframe::App for PoreDetectionApp {
         sidepanel::display_sidepanel(ctx, self);
 
         export_window::display_export_window(ctx, self);
+
+        debug_window::display_debug_window(ctx, self);
 
         plot::display_plot(ctx, self);
 
