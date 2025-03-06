@@ -111,7 +111,7 @@ pub fn region_selection(app: &mut PoreDetectionApp, ui: &mut Ui, plot_response: 
                 app.images.images[selected_img].region_start = Some(start);
                 app.images.images[selected_img].region_end = Some(end);
 
-                app.reload_image(ui.ctx(), Some(selected_img));
+                app.reload_image(Some(selected_img));
             }
 
             app.region_selector.0 = None;

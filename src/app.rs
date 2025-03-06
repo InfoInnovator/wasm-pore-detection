@@ -12,9 +12,9 @@ impl eframe::App for PoreDetectionApp {
 
             if let Some(selected) = self.images.selected {
                 if selected < self.images.images.len() - 1 {
-                    self.reload_image(ctx, Some(selected + 1));
+                    self.reload_image(Some(selected + 1));
                 } else {
-                    self.reload_image(ctx, None);
+                    self.reload_image(None);
                 }
             }
         } else if ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft)) {
@@ -22,9 +22,9 @@ impl eframe::App for PoreDetectionApp {
 
             if let Some(selected) = self.images.selected {
                 if selected > 0 {
-                    self.reload_image(ctx, Some(selected - 1));
+                    self.reload_image(Some(selected - 1));
                 } else {
-                    self.reload_image(ctx, Some(self.images.images.len() - 1));
+                    self.reload_image(Some(self.images.images.len() - 1));
                 }
             }
         } else if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
@@ -41,7 +41,7 @@ impl eframe::App for PoreDetectionApp {
                         Some(region_start);
                     self.images.images[self.images.selected.unwrap()].region_end = Some(region_end);
 
-                    self.reload_image(ctx, self.images.selected);
+                    self.reload_image(self.images.selected);
                 }
             }
         }

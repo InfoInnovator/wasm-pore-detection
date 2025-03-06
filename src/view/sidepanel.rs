@@ -3,7 +3,10 @@ use egui_double_slider::DoubleSlider;
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
-use crate::{model::image_data::ImageData, PoreDetectionApp};
+use crate::{
+    model::{detection_app::load_texture_into_ctx, image_data::ImageData},
+    PoreDetectionApp,
+};
 
 pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
     egui::SidePanel::new(egui::panel::Side::Left, "sidebar")
@@ -60,7 +63,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 // [TODO] use channels differently bc changing the value will create a new channel
                                 //        and the old receiver will be dropped, so the thread is sending on a closed
                                 //        channel
-                                app.reload_image(ctx, app.images.selected);
+                                app.reload_image(app.images.selected);
                             }
                         });
                     });
@@ -109,7 +112,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 || response.inner.2.changed()
                             {
                                 app.images.images[selected_i] = current_image.clone();
-                                app.reload_image(ctx, app.images.selected);
+                                app.reload_image(app.images.selected);
 
                                 log::info!(
                                     "min pore size bounds: {} - {}",
@@ -127,7 +130,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                 app.images.images[selected_img].region_start = None;
                 app.images.images[selected_img].region_end = None;
 
-                app.reload_image(ctx, app.images.selected);
+                app.reload_image(app.images.selected);
             }
 
             if ui.button("Export Results").clicked() {
@@ -175,7 +178,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 });
 
                                 if row.response().clicked() {
-                                    app.reload_image(ctx, Some(i));
+                                    app.reload_image(Some(i));
                                     log::info!("Selected Image: {:?}", app.images.selected);
                                 }
                             });
@@ -195,10 +198,15 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 });
                             }
 
-                            app.images.selected = Some(0);
-                            app.image_paths = Some(paths.clone());
+                            // load texture handles for every image
+                            for image in &mut app.images.images {
+                                image.image_handle =
+                                    Some(load_texture_into_ctx(ctx, &image.image.clone().unwrap()));
+                            }
 
-                            app.reload_image(ctx, None);
+                            app.images.selected = Some(0);
+                            app.image_to_display = app.images.images[0].image_handle.clone();
+                            app.image_paths = Some(paths.clone());
                         }
                     }
                 });

@@ -1,5 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::mpsc};
 
+use egui::TextureHandle;
 use egui_plot::PlotPoint;
 use image::{DynamicImage, Luma};
 use imageproc::definitions::{HasBlack, HasWhite};
@@ -8,6 +9,7 @@ use imageproc::definitions::{HasBlack, HasWhite};
 pub struct ImageData {
     pub path: Option<PathBuf>,
     pub image: Option<DynamicImage>,
+    pub image_handle: Option<TextureHandle>,
     pub density: Option<f64>,
     pub black_pixels: Option<Vec<PlotPoint>>,
     pub region_start: Option<PlotPoint>,
@@ -22,6 +24,7 @@ impl Default for ImageData {
         Self {
             path: Default::default(),
             image: Default::default(),
+            image_handle: Default::default(),
             density: Default::default(),
             black_pixels: Default::default(),
             region_start: Default::default(),
