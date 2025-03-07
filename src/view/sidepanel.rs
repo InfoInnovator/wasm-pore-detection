@@ -1,4 +1,4 @@
-use egui::DragValue;
+use egui::{DragValue, Slider};
 use egui_double_slider::DoubleSlider;
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
@@ -67,6 +67,40 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                             }
                         });
                     });
+                    body.row(30.0, |mut row| {
+                        row.col(|ui| {
+                            ui.label("Including minimal feature size");
+                        });
+                        row.col(|ui| {
+                            ui.style_mut().spacing.slider_width = 250.0;
+
+                            if app.images.selected.is_none() {
+                                return;
+                            }
+
+                            let selected_i = app.images.selected.unwrap_or(0);
+                            let current_image = &mut app.images.images[selected_i].clone();
+
+                            let response = ui.add(
+                                Slider::new(
+                                    &mut current_image.included_min_feature_size,
+                                    0.0..=100.0,
+                                )
+                                .fixed_decimals(0),
+                            );
+
+                            if response.changed() {
+                                app.images.images[selected_i] = current_image.clone();
+                                app.reload_image(app.images.selected);
+
+                                log::info!(
+                                    "included min feature size: {}",
+                                    current_image.included_min_feature_size
+                                );
+                            }
+                        });
+                    });
+
                     body.row(30.0, |mut row| {
                         row.col(|ui| {
                             ui.label("Minimal Pore Size");

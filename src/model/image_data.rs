@@ -17,6 +17,7 @@ pub struct ImageData {
     pub threshold: i16,
     pub minimal_pore_size_low: f32,
     pub minimal_pore_size_high: f32,
+    pub included_min_feature_size: f32,
 }
 
 impl Default for ImageData {
@@ -31,7 +32,8 @@ impl Default for ImageData {
             region_end: Default::default(),
             threshold: Default::default(),
             minimal_pore_size_low: 0.0,
-            minimal_pore_size_high: 10000.0,
+            minimal_pore_size_high: i32::MAX as f32,
+            included_min_feature_size: 0.0,
         }
     }
 }
@@ -44,6 +46,7 @@ impl ImageData {
         let threshold = self.threshold;
         let minimal_pore_size_low = self.minimal_pore_size_low;
         let minimal_pore_size_high = self.minimal_pore_size_high;
+        let included_min_feature_size = self.included_min_feature_size;
 
         std::thread::spawn(move || {
             let grayscale = image.grayscale().to_luma8();
@@ -67,6 +70,20 @@ impl ImageData {
                 labels_to_size[p[0] as usize] += 1;
             });
 
+            // find connected groups of black pixels
+            let black_labels = imageproc::region_labelling::connected_components(
+                &grayscale_thresh,
+                imageproc::region_labelling::Connectivity::Eight,
+                Luma::black(),
+            );
+
+            // count the pixels for each group/label
+            let num_labels_black = black_labels.iter().max().unwrap_or(&0);
+            let mut black_labels_to_size = vec![0; *num_labels_black as usize + 1];
+            black_labels.enumerate_pixels().for_each(|(_, _, p)| {
+                black_labels_to_size[p[0] as usize] += 1;
+            });
+
             // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
             let mut black_pixels = Vec::new();
             if let (Some(region_start), Some(region_end)) = (region_start, region_end) {
@@ -85,6 +102,22 @@ impl ImageData {
                         black_pixels.push(PlotPoint::new(x, y));
                     }
                 });
+
+                if included_min_feature_size > 0.0 {
+                    black_labels.enumerate_pixels().for_each(|(x, y, p)| {
+                        let y_start = image.height() - region_start.y as u32;
+                        let y_end = image.height() - region_end.y as u32;
+
+                        if black_labels_to_size[p[0] as usize] < included_min_feature_size as i32
+                            && x >= region_start.x as u32
+                            && x <= region_end.x as u32
+                            && y >= y_start
+                            && y <= y_end
+                        {
+                            black_pixels.push(PlotPoint::new(x, y));
+                        }
+                    });
+                }
             } else {
                 labels.enumerate_pixels().for_each(|(x, y, p)| {
                     if grayscale_thresh.get_pixel(x, y) == &Luma::black()
@@ -94,6 +127,14 @@ impl ImageData {
                         black_pixels.push(PlotPoint::new(x, y));
                     }
                 });
+
+                if included_min_feature_size > 0.0 {
+                    black_labels.enumerate_pixels().for_each(|(x, y, p)| {
+                        if black_labels_to_size[p[0] as usize] < included_min_feature_size as i32 {
+                            black_pixels.push(PlotPoint::new(x, y));
+                        }
+                    });
+                }
             }
             log::info!("pushed black pixels: {:?}", black_pixels.len());
 
