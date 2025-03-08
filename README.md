@@ -21,6 +21,7 @@ When the images are loaded you can select one from the list and start changing t
 ## Features
 
 + Threshold: Change the threshold for the grayscale image.
++ Minimal feature size: This is the size of the areas you still want to include into the anaylsis. Its mostly useful when a few pixels inside your pores have another color due to corosion, cracks or grinding.
 + Minimal Pore Size: This selects the lower/upper bounds for the pixel group size of the pores. Each "group" (connected by at least a single pixel) is quantified. If the number of pixels in this group is outside of the selected range, its not shown as a green pixel and therefore not used for the density analysis.
 + Zoom: Use your mouse wheel to zoom in and out. A double left click will reset the zoom.
 + Region Selection: Drag with your right mouse button to create a region for the analysis. You can reset this region with the button `Reset Region` under `Options`.
