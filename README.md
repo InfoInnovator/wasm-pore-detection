@@ -30,7 +30,7 @@ When the images are loaded you can select one from the list and start changing t
 
 ### Shortcuts
 
-You can use the `Left/Right Arrow` Keys to jump to the next/previous image in the list. If you hit `Enter` the selected region from the previous image is applied to the new one.
+You can use the `Left/Right Arrow` Keys to jump to the next/previous image in the list. If you hit `Enter` all options from the previous image are applied to the new one.
 
 
 ## Development

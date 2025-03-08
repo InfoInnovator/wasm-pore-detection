@@ -30,9 +30,9 @@ impl eframe::App for PoreDetectionApp {
         } else if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
             log::info!("Enter key pressed");
 
-            // apply region from previous selected image to current selected image
+            // apply options from previous selected image to current selected image
             if let Some(prev_img_i) = self.images.prev_selected {
-                let prev_img = &self.images.images[prev_img_i];
+                let prev_img = &self.images.images[prev_img_i].clone();
 
                 if let (Some(region_start), Some(region_end)) =
                     (prev_img.region_start, prev_img.region_end)
@@ -40,9 +40,17 @@ impl eframe::App for PoreDetectionApp {
                     self.images.images[self.images.selected.unwrap()].region_start =
                         Some(region_start);
                     self.images.images[self.images.selected.unwrap()].region_end = Some(region_end);
-
-                    self.reload_image(self.images.selected);
                 }
+
+                self.images.images[self.images.selected.unwrap()].threshold = prev_img.threshold;
+                self.images.images[self.images.selected.unwrap()].minimal_pore_size_low =
+                    prev_img.minimal_pore_size_low;
+                self.images.images[self.images.selected.unwrap()].minimal_pore_size_high =
+                    prev_img.minimal_pore_size_high;
+                self.images.images[self.images.selected.unwrap()].included_min_feature_size =
+                    prev_img.included_min_feature_size;
+
+                self.reload_image(self.images.selected);
             }
         } else if ctx.input(|i| i.key_pressed(egui::Key::D)) {
             self.debug_window_open = !self.debug_window_open;
