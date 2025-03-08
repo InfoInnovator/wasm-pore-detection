@@ -28,6 +28,8 @@ When the images are loaded you can select one from the list and start changing t
 + Density Analysis: This happens as soon as the image is loaded. Its also retriggered if you select a new threshold, pore size or create/reset the selected region. For the density the number of green pixels is divided by the number of total pixels of the image. If the threshold is too high, all pixels would become green, but a decent image size and the upper limit pore size of 1000 filters this out. So there are no longer any pixels displayed in green.
 + Export Results: This opens a new window with a table displaying all loaded images and the results of the analysis. You can then export this to an Excel table for further investigation. The file dialog is still missing. The Excel file is saved where the program was started from and has the name `demo.xlsx`. The Drop down menu for selecting the delimiter for the decimals is also not working.
 
+Currently supported image formats are: AVIF, BMP, JPEG/JPG, EXR, PNG, PNM, TGA and TIFF.
+
 ### Shortcuts
 
 You can use the `Left/Right Arrow` Keys to jump to the next/previous image in the list. If you hit `Enter` all options from the previous image are applied to the new one.

@@ -25,7 +25,7 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 egui_extras = { version = "0.31", features = ["all_loaders"] }
 egui_plot = "0.31"
-image = { version = "0.25.5", features = ["jpeg", "png"] }
+image = { version = "0.25.5", features = ["avif", "bmp", "jpeg", "exr", "png", "pnm", "tga", "tiff"] }
 imageproc = "0.25.0"
 tokio = "1.43.0"
 rfd = "0.15.2"
