@@ -8,6 +8,7 @@ use crate::PoreDetectionApp;
 pub fn display_export_window(ctx: &egui::Context, app: &mut PoreDetectionApp) {
     egui::Window::new("Export Results")
         .open(&mut app.export_window_open)
+        .max_height(600.0)
         .show(ctx, |ui| {
             let result_table = TableBuilder::new(ui)
                 .striped(true)
