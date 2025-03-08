@@ -11,6 +11,7 @@ use crate::{
 pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
     egui::SidePanel::new(egui::panel::Side::Left, "sidebar")
         .resizable(false)
+        .max_width(525.0)
         .show(ctx, |ui| {
             ui.heading("Options");
 
@@ -33,7 +34,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                             ui.label("Threshold");
                         });
                         row.col(|ui| {
-                            ui.style_mut().spacing.slider_width = 250.0;
+                            ui.style_mut().spacing.slider_width = 300.0;
 
                             if app.images.selected.is_none() {
                                 return;
@@ -41,30 +42,39 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
 
                             let current_image =
                                 &mut app.images.images[app.images.selected.unwrap_or(0)];
+                            let mut threshold = current_image.threshold;
 
-                            let mut response = ui.add(
-                                egui::Slider::new(&mut current_image.threshold, 0..=255)
-                                    .step_by(1.0),
-                            );
-
-                            // use mouse wheel to change slider
-                            if response.hovered() {
-                                let scroll = ui.input(|i| i.smooth_scroll_delta);
-                                if scroll.y > 10.0 || scroll.y < -10.0 {
-                                    current_image.threshold = (current_image.threshold as f32
-                                        + scroll.y.signum())
-                                    .clamp(0.0, 255.0)
-                                        as i16;
+                            ui.horizontal(|ui| {
+                                let mut response =
+                                    ui.add(egui::Slider::new(&mut threshold, 0..=255).step_by(1.0));
+                                if ui.button("-").clicked() {
+                                    threshold -= 1;
+                                    response.mark_changed();
+                                } else if ui.button("+").clicked() {
+                                    threshold += 1;
                                     response.mark_changed();
                                 }
-                            }
 
-                            if response.changed() {
-                                // [TODO] use channels differently bc changing the value will create a new channel
-                                //        and the old receiver will be dropped, so the thread is sending on a closed
-                                //        channel
-                                app.reload_image(app.images.selected);
-                            }
+                                // use mouse wheel to change slider
+                                if response.hovered() {
+                                    let scroll = ui.input(|i| i.smooth_scroll_delta);
+                                    if scroll.y > 10.0 || scroll.y < -10.0 {
+                                        threshold = (threshold as f32 + scroll.y.signum())
+                                            .clamp(0.0, 255.0)
+                                            as i16;
+                                        response.mark_changed();
+                                    }
+                                }
+
+                                if response.changed() {
+                                    // [TODO] use channels differently bc changing the value will create a new channel
+                                    //        and the old receiver will be dropped, so the thread is sending on a closed
+                                    //        channel
+                                    app.images.images[app.images.selected.unwrap_or(0)].threshold =
+                                        threshold;
+                                    app.reload_image(app.images.selected);
+                                }
+                            });
                         });
                     });
                     body.row(30.0, |mut row| {
@@ -72,7 +82,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                             ui.label("Including minimal feature size");
                         });
                         row.col(|ui| {
-                            ui.style_mut().spacing.slider_width = 250.0;
+                            ui.style_mut().spacing.slider_width = 300.0;
 
                             if app.images.selected.is_none() {
                                 return;
@@ -81,23 +91,32 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                             let selected_i = app.images.selected.unwrap_or(0);
                             let current_image = &mut app.images.images[selected_i].clone();
 
-                            let response = ui.add(
-                                Slider::new(
-                                    &mut current_image.included_min_feature_size,
-                                    0.0..=100.0,
-                                )
-                                .fixed_decimals(0),
-                            );
-
-                            if response.changed() {
-                                app.images.images[selected_i] = current_image.clone();
-                                app.reload_image(app.images.selected);
-
-                                log::info!(
-                                    "included min feature size: {}",
-                                    current_image.included_min_feature_size
+                            ui.horizontal(|ui| {
+                                let mut response = ui.add(
+                                    Slider::new(
+                                        &mut current_image.included_min_feature_size,
+                                        0.0..=100.0,
+                                    )
+                                    .fixed_decimals(0),
                                 );
-                            }
+                                if ui.button("-").clicked() {
+                                    current_image.included_min_feature_size -= 1.0;
+                                    response.mark_changed();
+                                } else if ui.button("+").clicked() {
+                                    current_image.included_min_feature_size += 1.0;
+                                    response.mark_changed();
+                                }
+
+                                if response.changed() {
+                                    app.images.images[selected_i] = current_image.clone();
+                                    app.reload_image(app.images.selected);
+
+                                    log::info!(
+                                        "included min feature size: {}",
+                                        current_image.included_min_feature_size
+                                    );
+                                }
+                            });
                         });
                     });
 
@@ -106,7 +125,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                             ui.label("Minimal Pore Size");
                         });
                         row.col(|ui| {
-                            ui.style_mut().spacing.slider_width = 250.0;
+                            // ui.style_mut().spacing.slider_width = 300.0;
 
                             if app.images.selected.is_none() {
                                 return;
@@ -116,11 +135,18 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                             let current_image = &mut app.images.images[selected_i].clone();
 
                             let response = ui.horizontal(|ui| {
-                                let low_drag_response = ui.add(
+                                let mut low_drag_response = ui.add(
                                     DragValue::new(&mut current_image.minimal_pore_size_low)
                                         .speed(0.1)
                                         .fixed_decimals(0),
                                 );
+                                if ui.button("-").clicked() {
+                                    current_image.minimal_pore_size_low -= 1.0;
+                                    low_drag_response.mark_changed();
+                                } else if ui.button("+").clicked() {
+                                    current_image.minimal_pore_size_low += 1.0;
+                                    low_drag_response.mark_changed();
+                                }
 
                                 let slider_response = ui.add(
                                     DoubleSlider::new(
@@ -128,15 +154,22 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                         &mut current_image.minimal_pore_size_high,
                                         0.0..=i32::MAX as f32,
                                     )
-                                    .width(250.0)
+                                    .width(170.0)
                                     .separation_distance(1.0),
                                 );
 
-                                let high_drag_response = ui.add(
+                                let mut high_drag_response = ui.add(
                                     DragValue::new(&mut current_image.minimal_pore_size_high)
                                         .speed(0.1)
                                         .fixed_decimals(0),
                                 );
+                                if ui.button("-").clicked() {
+                                    current_image.minimal_pore_size_high -= 1.0;
+                                    high_drag_response.mark_changed();
+                                } else if ui.button("+").clicked() {
+                                    current_image.minimal_pore_size_high += 1.0;
+                                    high_drag_response.mark_changed();
+                                }
 
                                 (low_drag_response, slider_response, high_drag_response)
                             });
@@ -158,19 +191,35 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                     });
                 });
 
-            if ui.button("Reset Region").clicked() {
-                log::info!("Reset Region");
-                let selected_img = app.images.selected.unwrap_or(0);
-                app.images.images[selected_img].region_start = None;
-                app.images.images[selected_img].region_end = None;
+            ui.with_layout(
+                egui::Layout::with_cross_justify(
+                    egui::Layout::left_to_right(egui::Align::Min),
+                    false,
+                ),
+                |ui| {
+                    let button_width = (ui.available_width() / 2.0) - 10.0;
 
-                app.reload_image(app.images.selected);
-            }
+                    if ui
+                        .add_sized([button_width, 0.0], egui::Button::new("Reset Region"))
+                        .clicked()
+                    {
+                        log::info!("Reset Region");
+                        let selected_img = app.images.selected.unwrap_or(0);
+                        app.images.images[selected_img].region_start = None;
+                        app.images.images[selected_img].region_end = None;
 
-            if ui.button("Export Results").clicked() {
-                log::info!("Export Results");
-                app.export_window_open = true;
-            }
+                        app.reload_image(app.images.selected);
+                    }
+
+                    if ui
+                        .add_sized([button_width, 0.0], egui::Button::new("Export Results"))
+                        .clicked()
+                    {
+                        log::info!("Export Results");
+                        app.export_window_open = true;
+                    }
+                },
+            );
 
             if let Some(selected_img) = app.images.selected {
                 if let Some(density) = app.images.images[selected_img].density {
