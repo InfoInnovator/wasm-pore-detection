@@ -252,6 +252,8 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                     ui.image(format!("file://{}", path.to_str().unwrap()));
                                 });
                                 row.col(|ui| {
+                                    ui.style_mut().interaction.selectable_labels = false;
+
                                     ui.heading(path_str);
 
                                     ui.label(format!(
