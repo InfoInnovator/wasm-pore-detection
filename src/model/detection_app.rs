@@ -23,6 +23,7 @@ pub struct PoreDetectionApp {
     pub debug_info: DebugInfo,
     pub shortcut_window_open: bool,
     pub export_decimal_format: ExportDecimalFormat,
+    pub new_project_model_open: bool,
 }
 
 impl PoreDetectionApp {

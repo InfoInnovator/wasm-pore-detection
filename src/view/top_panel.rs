@@ -6,6 +6,11 @@ pub fn display_top_panel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
             let is_web = cfg!(target_arch = "wasm32");
             if !is_web {
                 ui.menu_button("File", |ui| {
+                    if ui.button("New").clicked() {
+                        app.new_project_model_open = true;
+                        ui.close_menu();
+                    }
+
                     if ui.button("Shortcuts").clicked() {
                         app.shortcut_window_open = true;
                         ui.close_menu();

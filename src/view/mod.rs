@@ -1,5 +1,6 @@
 pub mod debug_window;
 pub mod export_window;
+pub mod new_project_modal;
 pub mod plot;
 pub mod shortcut_window;
 pub mod sidepanel;

@@ -1,6 +1,8 @@
 use crate::{
     model::detection_app::PoreDetectionApp,
-    view::{debug_window, export_window, plot, shortcut_window, sidepanel, top_panel},
+    view::{
+        debug_window, export_window, new_project_modal, plot, shortcut_window, sidepanel, top_panel,
+    },
 };
 
 impl eframe::App for PoreDetectionApp {
@@ -59,6 +61,8 @@ impl eframe::App for PoreDetectionApp {
         top_panel::display_top_panel(ctx, self);
 
         shortcut_window::display_shortcut_window(ctx, self);
+
+        new_project_modal::display_new_projet_modal(ctx, self);
 
         sidepanel::display_sidepanel(ctx, self);
 
