@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use egui::{Pos2, TextureHandle};
 use egui_extras::install_image_loaders;
 use image::DynamicImage;
-use imageproc::drawing::Canvas;
 
 use crate::view::{debug_window::DebugInfo, export_window::ExportDecimalFormat};
 
@@ -62,32 +61,13 @@ impl PoreDetectionApp {
                 if let Some(path) = &self.images.images[selected_img].path {
                     log::info!("Drawing green pixels on image: {:?}", path);
 
-                    // let image = image::open(path).unwrap();
                     let image = self.images.images[selected_img].image.clone().unwrap();
                     let mut image = image.to_rgba8();
                     let green_pixel = image::Rgba([0, 255, 13, 204]);
 
-                    if let (Some(region_start), Some(region_end)) = (
-                        self.images.images[selected_img].region_start,
-                        self.images.images[selected_img].region_end,
-                    ) {
-                        for pixel in black_pixels {
-                            let y_start = image.height() - region_start.y as u32;
-                            let y_end = image.height() - region_end.y as u32;
-
-                            if pixel.x >= region_start.x
-                                && pixel.x <= region_end.x
-                                && pixel.y >= y_start.into()
-                                && pixel.y <= y_end.into()
-                            {
-                                image.draw_pixel(pixel.x as u32, pixel.y as u32, green_pixel);
-                            }
-                        }
-                    } else {
-                        for pixel in black_pixels.clone() {
-                            image.draw_pixel(pixel.x as u32, pixel.y as u32, green_pixel);
-                        }
-                    }
+                    black_pixels.iter().for_each(|pixel| {
+                        image.put_pixel(pixel.x as u32, pixel.y as u32, green_pixel);
+                    });
 
                     self.image_to_display =
                         Some(load_texture_into_ctx(ctx, &DynamicImage::ImageRgba8(image)));
