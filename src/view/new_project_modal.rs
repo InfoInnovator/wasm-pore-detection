@@ -23,7 +23,6 @@ pub fn display_new_projet_modal(ctx: &egui::Context, app: &mut detection_app::Po
                     app.image_to_display = None;
                     app.region_selector = (None, None);
                     app.region = (None, None);
-                    app.receiver = None;
                     app.image_paths = None;
                     app.images = Images {
                         images: vec![],

@@ -1,8 +1,7 @@
-use std::{path::PathBuf, sync::mpsc};
+use std::path::PathBuf;
 
 use egui::{Pos2, TextureHandle};
 use egui_extras::install_image_loaders;
-use egui_plot::PlotPoint;
 use image::DynamicImage;
 use imageproc::drawing::Canvas;
 
@@ -15,9 +14,9 @@ pub struct PoreDetectionApp {
     pub image_to_display: Option<TextureHandle>,
     pub region_selector: (Option<Pos2>, Option<Pos2>),
     pub region: (Option<Pos2>, Option<Pos2>),
-    pub receiver: Option<mpsc::Receiver<(Vec<PlotPoint>, f64)>>,
     pub image_paths: Option<Vec<PathBuf>>,
     pub images: Images,
+    pub join_handle: Option<std::thread::JoinHandle<(std::vec::Vec<egui_plot::PlotPoint>, f64)>>,
     pub export_window_open: bool,
     pub debug_window_open: bool,
     pub debug_info: DebugInfo,
@@ -43,17 +42,17 @@ impl PoreDetectionApp {
             self.images.selected = Some(0);
         }
 
-        let (tx, rx) = mpsc::channel();
-        self.receiver = Some(rx);
-
-        self.images.images[selected].analyze_image(tx);
+        self.join_handle = Some(self.images.images[selected].analyze_image());
     }
 
     pub fn receive_image_data(&mut self, ctx: &egui::Context) {
         // [TODO] move this to another thread bc painting blocks the main thread for a short time
         // receive from channel
-        if let Some(rec) = &self.receiver {
-            if let Ok((black_pixels, density)) = rec.try_recv() {
+        if let Some(handle) = &self.join_handle {
+            if handle.is_finished() {
+                let handle = self.join_handle.take().unwrap();
+                let (black_pixels, density) = handle.join().unwrap();
+
                 let selected_img = self.images.selected.unwrap_or(0);
 
                 self.images.images[selected_img].black_pixels = Some(black_pixels.clone());

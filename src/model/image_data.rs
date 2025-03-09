@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::mpsc};
+use std::{path::PathBuf, thread::JoinHandle};
 
 use egui::TextureHandle;
 use egui_plot::PlotPoint;
@@ -39,7 +39,7 @@ impl Default for ImageData {
 }
 
 impl ImageData {
-    pub fn analyze_image(&mut self, tx: mpsc::Sender<(Vec<PlotPoint>, f64)>) {
+    pub fn analyze_image(&mut self) -> JoinHandle<(std::vec::Vec<egui_plot::PlotPoint>, f64)> {
         let image = self.image.clone().unwrap();
         let region_start = self.region_start;
         let region_end = self.region_end;
@@ -48,7 +48,7 @@ impl ImageData {
         let minimal_pore_size_high = self.minimal_pore_size_high;
         let included_min_feature_size = self.included_min_feature_size;
 
-        std::thread::spawn(move || {
+        let handle = std::thread::spawn(move || {
             let grayscale = image.grayscale().to_luma8();
             let grayscale_thresh = imageproc::contrast::threshold(
                 &grayscale,
@@ -152,10 +152,9 @@ impl ImageData {
                     * 100.0;
             }
 
-            // send the black pixels and the density to the main thread
-            if let Err(err) = tx.send((black_pixels.clone(), density)) {
-                log::error!("Error sending data to another thread: {}", err);
-            }
+            (black_pixels, density)
         });
+
+        handle
     }
 }
