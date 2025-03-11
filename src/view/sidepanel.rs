@@ -233,8 +233,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
 
             ui.heading("Image List");
 
-            if let Some(folder_path) = &app.image_paths.clone() {
-                // create table with image names
+            if !app.images.images.is_empty() {
                 TableBuilder::new(ui)
                     .id_salt("image_list")
                     .column(Column::auto().at_least(200.0))
@@ -242,8 +241,14 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                     .striped(true)
                     .sense(egui::Sense::click())
                     .body(|mut body| {
-                        for (i, path) in folder_path.iter().enumerate() {
-                            let path_str = path.file_name().unwrap().to_str().unwrap().to_string();
+                        let images = &app.images.images;
+                        let paths = &images
+                            .iter()
+                            .filter_map(|image| image.path.clone())
+                            .collect::<Vec<_>>();
+
+                        for (i, path) in paths.iter().enumerate() {
+                            let filename = path.file_name().unwrap().to_str().unwrap().to_string();
 
                             body.row(150.0, |mut row| {
                                 row.set_selected(Some(i) == app.images.selected);
@@ -254,7 +259,7 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                                 row.col(|ui| {
                                     ui.style_mut().interaction.selectable_labels = false;
 
-                                    ui.heading(path_str);
+                                    ui.heading(filename);
 
                                     ui.label(format!(
                                         "Density: {:.5}%",
@@ -291,7 +296,6 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
 
                             app.images.selected = Some(0);
                             app.image_to_display = app.images.images[0].image_handle.clone();
-                            app.image_paths = Some(paths.clone());
                         }
                     }
                 });

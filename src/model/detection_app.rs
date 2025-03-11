@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use egui::{Pos2, TextureHandle};
 use egui_extras::install_image_loaders;
 use image::DynamicImage;
@@ -13,7 +11,6 @@ pub struct PoreDetectionApp {
     pub image_to_display: Option<TextureHandle>,
     pub region_selector: (Option<Pos2>, Option<Pos2>),
     pub region: (Option<Pos2>, Option<Pos2>),
-    pub image_paths: Option<Vec<PathBuf>>,
     pub images: Images,
     pub join_handle: Option<std::thread::JoinHandle<(std::vec::Vec<egui_plot::PlotPoint>, f64)>>,
     pub export_window_open: bool,
@@ -71,6 +68,8 @@ impl PoreDetectionApp {
 
                     self.image_to_display =
                         Some(load_texture_into_ctx(ctx, &DynamicImage::ImageRgba8(image)));
+
+                    log::info!("redrawn image");
                 }
             }
         }
