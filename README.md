@@ -26,7 +26,8 @@ When the images are loaded you can select one from the list and start changing t
 + Zoom: Use your mouse wheel to zoom in and out. A double left click will reset the zoom.
 + Region Selection: Drag with your right mouse button to create a region for the analysis. You can reset this region with the button `Reset Region` under `Options`.
 + Density Analysis: This happens as soon as the image is loaded. Its also retriggered if you select a new threshold, pore size or create/reset the selected region. For the density the number of green pixels is divided by the number of total pixels of the image. If the threshold is too high, all pixels would become green, but a decent image size and the upper limit pore size of 1000 filters this out. So there are no longer any pixels displayed in green.
-+ Export Results: This opens a new window with a table displaying all loaded images and the results of the analysis. You can then export this to an Excel table for further investigation. The file dialog is still missing. The Excel file is saved where the program was started from and has the name `demo.xlsx`. The Drop down menu for selecting the delimiter for the decimals is also not working.
++ Export Results: This opens a new window with a table displaying all loaded images and the results of the analysis. You can then export this to an Excel table for further investigation.
++ Import Results: You can also import the already saved Excel file via `File` -> `Load from file`.
 
 Currently supported image formats are: AVIF, BMP, JPEG/JPG, EXR, PNG, PNM, TGA and TIFF.
 
