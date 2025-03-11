@@ -11,6 +11,11 @@ pub fn display_top_panel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                         ui.close_menu();
                     }
 
+                    if ui.button("Load from file").clicked() {
+                        app.load_project_model_open = true;
+                        ui.close_menu();
+                    }
+
                     if ui.button("Shortcuts").clicked() {
                         app.shortcut_window_open = true;
                         ui.close_menu();
