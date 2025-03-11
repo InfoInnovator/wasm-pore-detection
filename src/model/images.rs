@@ -43,6 +43,7 @@ impl Images {
                 filename,
                 &format!("{:.5}", density),
                 &threshold.to_string(),
+                &image.included_min_feature_size.to_string(),
                 &image.minimal_pore_size_low.to_string(),
                 &image.minimal_pore_size_high.to_string(),
                 &format!(
@@ -61,6 +62,7 @@ impl Images {
             TableColumn::new().set_header("Filename"),
             TableColumn::new().set_header("Density"),
             TableColumn::new().set_header("Threshold"),
+            TableColumn::new().set_header("Min Feature Size"),
             TableColumn::new().set_header("Lower Pore Size"),
             TableColumn::new().set_header("Upper Pore Size"),
             TableColumn::new().set_header("Selected Region"),

@@ -19,6 +19,7 @@ pub fn display_export_window(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                 .column(Column::initial(150.0))
                 .column(Column::initial(150.0))
                 .column(Column::initial(150.0))
+                .column(Column::initial(150.0))
                 .column(Column::initial(150.0).clip(true))
                 .header(30.0, |mut header| {
                     header.col(|ui| {
@@ -29,6 +30,9 @@ pub fn display_export_window(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                     });
                     header.col(|ui| {
                         ui.heading("Threshold");
+                    });
+                    header.col(|ui| {
+                        ui.heading("Minimal Feature Size");
                     });
                     header.col(|ui| {
                         ui.heading("Lower Pore Size");
@@ -64,6 +68,9 @@ pub fn display_export_window(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                     });
                     row.col(|ui| {
                         ui.label(format!("{}", current_image.threshold));
+                    });
+                    row.col(|ui| {
+                        ui.label(format!("{}", current_image.included_min_feature_size));
                     });
                     row.col(|ui| {
                         ui.label(format!("{:.0}", current_image.minimal_pore_size_low));
