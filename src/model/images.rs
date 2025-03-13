@@ -1,16 +1,35 @@
+use std::sync::mpsc;
+
 use egui_plot::PlotPoint;
-use rfd::FileDialog;
 use rust_xlsxwriter::{workbook::Workbook, Table, TableColumn};
+
+#[cfg(not(target_arch = "wasm32"))]
+use rfd::FileDialog;
 
 use crate::view::export_window::ExportDecimalFormat;
 
 use super::image_data::ImageData;
 
-#[derive(Default)]
 pub struct Images {
     pub images: Vec<ImageData>,
     pub selected: Option<usize>,
     pub prev_selected: Option<usize>,
+    pub sender: mpsc::Sender<ImageData>,
+    pub receiver: mpsc::Receiver<ImageData>,
+}
+
+impl Default for Images {
+    fn default() -> Self {
+        let (sender, receiver) = mpsc::channel();
+
+        Self {
+            images: Vec::new(),
+            selected: None,
+            prev_selected: None,
+            sender,
+            receiver,
+        }
+    }
 }
 
 impl Images {
@@ -78,9 +97,9 @@ impl Images {
             .unwrap();
         worksheet.autofit();
 
-        let path = FileDialog::new().add_filter("Excel", &["xlsx"]).save_file();
-        if let Some(path) = path {
-            workbook.save(path).unwrap();
-        }
+        // let path = FileDialog::new().add_filter("Excel", &["xlsx"]).save_file();
+        // if let Some(path) = path {
+        //     workbook.save(path).unwrap();
+        // }
     }
 }

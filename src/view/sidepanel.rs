@@ -1,7 +1,12 @@
-use egui::{DragValue, Slider};
+use egui::{ColorImage, DragValue, Image, Slider};
 use egui_double_slider::DoubleSlider;
 use egui_extras::{Column, TableBuilder};
+
+#[cfg(not(target_arch = "wasm32"))]
 use rfd::FileDialog;
+
+#[cfg(target_arch = "wasm32")]
+use rfd::AsyncFileDialog;
 
 use crate::{
     model::{detection_app::load_texture_into_ctx, image_data::ImageData},
@@ -10,7 +15,7 @@ use crate::{
 
 pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
     egui::SidePanel::new(egui::panel::Side::Left, "sidebar")
-        .resizable(false)
+        // .resizable(false)
         .max_width(525.0)
         .show(ctx, |ui| {
             ui.heading("Options");
@@ -241,20 +246,37 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                     .striped(true)
                     .sense(egui::Sense::click())
                     .body(|mut body| {
-                        let images = &app.images.images;
-                        let paths = &images
-                            .iter()
-                            .filter_map(|image| image.path.clone())
-                            .collect::<Vec<_>>();
+                        let images = &app.images.images.clone();
+                        // let paths = &images
+                        //     .iter()
+                        //     .filter_map(|image| image.path.clone())
+                        //     .collect::<Vec<_>>();
 
-                        for (i, path) in paths.iter().enumerate() {
-                            let filename = path.file_name().unwrap().to_str().unwrap().to_string();
+                        for (i, image_data) in images.iter().enumerate() {
+                            // let filename = path.file_name().unwrap().to_str().unwrap().to_string();
+                            let filename = "Hello";
 
                             body.row(150.0, |mut row| {
                                 row.set_selected(Some(i) == app.images.selected);
 
                                 row.col(|ui| {
-                                    ui.image(format!("file://{}", path.to_str().unwrap()));
+                                    if let (Some(image), Some(texture_handle)) =
+                                        (&image_data.image, &image_data.image_handle)
+                                    {
+                                        // let color_image = ColorImage::from_rgba_unmultiplied(
+                                        //     texture_handle.size(),
+                                        //     image.to_rgba8().as_raw(),
+                                        // );
+
+                                        // let egui_img = Image::new(texture_handle).max_width(200.0);
+
+                                        ui.add(
+                                            egui::Image::from_texture(texture_handle)
+                                                .max_width(200.0),
+                                        );
+                                    }
+                                    // ColorImage::from_rgba_unmultiplied(image_data.image_handle., rgba)
+                                    // ui.image(format!("file://{}", path.to_str().unwrap()));
                                 });
                                 row.col(|ui| {
                                     ui.style_mut().interaction.selectable_labels = false;
@@ -278,27 +300,62 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                 // [TODO] make async so the ui is not blocked
                 ui.vertical_centered(|ui| {
                     if ui.button("Open Files").clicked() {
-                        let path = FileDialog::new().pick_files();
-                        if let Some(paths) = path {
-                            for path in &paths {
-                                app.images.images.push(ImageData {
-                                    path: Some(path.to_path_buf()),
-                                    image: Some(image::open(path).unwrap()),
-                                    ..Default::default()
-                                });
-                            }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            let new_sender = app.images.sender.clone();
+                            wasm_bindgen_futures::spawn_local(async move {
+                                let file_handles = AsyncFileDialog::new().pick_files().await;
 
-                            // load texture handles for every image
-                            for image in &mut app.images.images {
-                                image.image_handle =
-                                    Some(load_texture_into_ctx(ctx, &image.image.clone().unwrap()));
-                            }
+                                if let Some(file_handles) = file_handles {
+                                    for file_handle in file_handles {
+                                        let raw_img = file_handle.read().await;
+                                        let img = image::load_from_memory(&raw_img).unwrap();
 
-                            app.images.selected = Some(0);
-                            app.image_to_display = app.images.images[0].image_handle.clone();
+                                        new_sender.send(ImageData {
+                                            image: Some(img),
+                                            ..Default::default()
+                                        });
+                                    }
+                                }
+                            });
+                        }
+
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let path = FileDialog::new().pick_files();
+                            if let Some(paths) = path {
+                                for path in &paths {
+                                    app.images.images.push(ImageData {
+                                        path: Some(path.to_path_buf()),
+                                        image: Some(image::open(path).unwrap()),
+                                        ..Default::default()
+                                    });
+                                }
+
+                                // load texture handles for every image
+                                for image in &mut app.images.images {
+                                    image.image_handle = Some(load_texture_into_ctx(
+                                        ctx,
+                                        &image.image.clone().unwrap(),
+                                    ));
+                                }
+
+                                app.images.selected = Some(0);
+                                app.image_to_display = app.images.images[0].image_handle.clone();
+                            }
                         }
                     }
                 });
             }
         });
+
+    #[cfg(target_arch = "wasm32")]
+    if let Ok(mut new_imagedata) = app.images.receiver.try_recv() {
+        new_imagedata.image_handle = Some(load_texture_into_ctx(
+            ctx,
+            &new_imagedata.image.clone().unwrap(),
+        ));
+
+        app.images.images.push(new_imagedata);
+    }
 }

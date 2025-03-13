@@ -20,12 +20,17 @@ pub struct PoreDetectionApp {
     pub export_decimal_format: ExportDecimalFormat,
     pub new_project_model_open: bool,
     pub load_project_model_open: bool,
+    pub is_web: bool,
 }
 
 impl PoreDetectionApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         install_image_loaders(&cc.egui_ctx);
-        Default::default()
+
+        Self {
+            is_web: cfg!(target_arch = "wasm32"),
+            ..Default::default()
+        }
     }
 
     pub fn reload_image(&mut self, selected_image: Option<usize>) {
@@ -69,8 +74,6 @@ impl PoreDetectionApp {
 
                     self.image_to_display =
                         Some(load_texture_into_ctx(ctx, &DynamicImage::ImageRgba8(image)));
-
-                    log::info!("redrawn image");
                 }
             }
         }
