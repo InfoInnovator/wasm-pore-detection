@@ -12,7 +12,13 @@ pub struct PoreDetectionApp {
     pub region_selector: (Option<Pos2>, Option<Pos2>),
     pub region: (Option<Pos2>, Option<Pos2>),
     pub images: Images,
-    pub join_handle: Option<std::thread::JoinHandle<(std::vec::Vec<egui_plot::PlotPoint>, f64)>>,
+    pub join_handle: Option<
+        std::thread::JoinHandle<(
+            std::vec::Vec<egui_plot::PlotPoint>,
+            std::vec::Vec<egui_plot::PlotPoint>,
+            f64,
+        )>,
+    >,
     pub export_window_open: bool,
     pub debug_window_open: bool,
     pub debug_info: DebugInfo,
@@ -48,11 +54,11 @@ impl PoreDetectionApp {
         if let Some(handle) = &self.join_handle {
             if handle.is_finished() {
                 let handle = self.join_handle.take().unwrap();
-                let (black_pixels, density) = handle.join().unwrap();
+                let (green_pixels, white_pixels, density) = handle.join().unwrap();
 
                 let selected_img = self.images.selected.unwrap_or(0);
 
-                self.images.images[selected_img].black_pixels = Some(black_pixels.clone());
+                self.images.images[selected_img].green_pixels = Some(green_pixels.clone());
                 self.images.images[selected_img].density = Some(density);
 
                 // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
@@ -62,15 +68,18 @@ impl PoreDetectionApp {
                     let image = self.images.images[selected_img].image.clone().unwrap();
                     let mut image = image.to_rgba8();
                     let green_pixel = image::Rgba([0, 255, 13, 204]);
+                    let white_pixel = image::Rgba([255, 255, 255, 127]);
 
-                    black_pixels.iter().for_each(|pixel| {
+                    green_pixels.iter().for_each(|pixel| {
                         image.put_pixel(pixel.x as u32, pixel.y as u32, green_pixel);
+                    });
+
+                    white_pixels.iter().for_each(|pixel| {
+                        image.put_pixel(pixel.x as u32, pixel.y as u32, white_pixel);
                     });
 
                     self.image_to_display =
                         Some(load_texture_into_ctx(ctx, &DynamicImage::ImageRgba8(image)));
-
-                    log::info!("redrawn image");
                 }
             }
         }

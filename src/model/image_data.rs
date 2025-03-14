@@ -11,7 +11,7 @@ pub struct ImageData {
     pub image: Option<DynamicImage>,
     pub image_handle: Option<TextureHandle>,
     pub density: Option<f64>,
-    pub black_pixels: Option<Vec<PlotPoint>>,
+    pub green_pixels: Option<Vec<PlotPoint>>,
     pub region_start: Option<PlotPoint>,
     pub region_end: Option<PlotPoint>,
     pub threshold: i16,
@@ -27,7 +27,7 @@ impl Default for ImageData {
             image: Default::default(),
             image_handle: Default::default(),
             density: Default::default(),
-            black_pixels: Default::default(),
+            green_pixels: Default::default(),
             region_start: Default::default(),
             region_end: Default::default(),
             threshold: Default::default(),
@@ -39,7 +39,13 @@ impl Default for ImageData {
 }
 
 impl ImageData {
-    pub fn analyze_image(&mut self) -> JoinHandle<(std::vec::Vec<egui_plot::PlotPoint>, f64)> {
+    pub fn analyze_image(
+        &mut self,
+    ) -> JoinHandle<(
+        std::vec::Vec<egui_plot::PlotPoint>,
+        std::vec::Vec<egui_plot::PlotPoint>,
+        f64,
+    )> {
         let image = self.image.clone().unwrap();
         let region_start = self.region_start;
         let region_end = self.region_end;
@@ -85,7 +91,8 @@ impl ImageData {
             });
 
             // draw a green pixel for each black pixel that is part of a group with a size greater than the users minimal pore size
-            let mut black_pixels = Vec::new();
+            let mut green_pixels = Vec::new();
+            let mut white_pixels = Vec::new();
             if let (Some(region_start), Some(region_end)) = (region_start, region_end) {
                 labels.enumerate_pixels().for_each(|(x, y, p)| {
                     let y_start = image.height() - region_start.y as u32;
@@ -99,7 +106,16 @@ impl ImageData {
                         && y >= y_start
                         && y <= y_end
                     {
-                        black_pixels.push(PlotPoint::new(x, y));
+                        green_pixels.push(PlotPoint::new(x, y));
+                    }
+
+                    if grayscale_thresh.get_pixel(x, y) == &Luma::white()
+                        && x >= region_start.x as u32
+                        && x <= region_end.x as u32
+                        && y >= y_start
+                        && y <= y_end
+                    {
+                        white_pixels.push(PlotPoint::new(x, y));
                     }
                 });
 
@@ -114,7 +130,11 @@ impl ImageData {
                             && y >= y_start
                             && y <= y_end
                         {
-                            black_pixels.push(PlotPoint::new(x, y));
+                            green_pixels.push(PlotPoint::new(x, y));
+
+                            if white_pixels.contains(&PlotPoint::new(x, y)) {
+                                white_pixels.retain(|p| p != &PlotPoint::new(x, y));
+                            }
                         }
                     });
                 }
@@ -124,35 +144,32 @@ impl ImageData {
                         && labels_to_size[p[0] as usize] > minimal_pore_size_low as i32
                         && labels_to_size[p[0] as usize] < minimal_pore_size_high as i32
                     {
-                        black_pixels.push(PlotPoint::new(x, y));
+                        green_pixels.push(PlotPoint::new(x, y));
+                    }
+
+                    if grayscale_thresh.get_pixel(x, y) == &Luma::white() {
+                        white_pixels.push(PlotPoint::new(x, y));
                     }
                 });
 
                 if included_min_feature_size > 0.0 {
                     black_labels.enumerate_pixels().for_each(|(x, y, p)| {
                         if black_labels_to_size[p[0] as usize] < included_min_feature_size as i32 {
-                            black_pixels.push(PlotPoint::new(x, y));
+                            green_pixels.push(PlotPoint::new(x, y));
+
+                            if white_pixels.contains(&PlotPoint::new(x, y)) {
+                                white_pixels.retain(|p| p != &PlotPoint::new(x, y));
+                            }
                         }
                     });
                 }
             }
-            log::info!("pushed black pixels: {:?}", black_pixels.len());
+            log::info!("pushed black pixels: {:?}", green_pixels.len());
 
             // calculate the density for the whole image
-            let density;
-            if let (Some(start), Some(end)) = (region_start, region_end) {
-                density = (1.0
-                    - (black_pixels.len() as f64
-                        / ((f64::abs(end.x - start.x)) * f64::abs(end.y - start.y))))
-                    * 100.0;
-            } else {
-                density = (1.0
-                    - (black_pixels.len() as f64
-                        / (grayscale.width() * grayscale.height()) as f64))
-                    * 100.0;
-            }
+            let density = (1.0 - (green_pixels.len() as f64 / white_pixels.len() as f64)) * 100.0;
 
-            (black_pixels, density)
+            (green_pixels, white_pixels, density)
         });
 
         handle
