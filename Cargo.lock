@@ -1219,15 +1219,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "egui_double_slider"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6c90070144e20f81f90a15dbd21c6e914c02a9513da0f32ba069400f233f3a9"
-dependencies = [
- "egui",
-]
-
-[[package]]
 name = "egui_extras"
 version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4155,7 +4146,6 @@ dependencies = [
  "calamine",
  "eframe",
  "egui",
- "egui_double_slider",
  "egui_extras",
  "egui_plot",
  "env_logger",

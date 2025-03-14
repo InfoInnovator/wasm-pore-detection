@@ -1,5 +1,4 @@
 use egui::{DragValue, Slider, Spinner};
-use egui_double_slider::DoubleSlider;
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
@@ -122,10 +121,10 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
 
                     body.row(30.0, |mut row| {
                         row.col(|ui| {
-                            ui.label("Minimal Pore Size");
+                            ui.label("Minimal Pore Size Low");
                         });
                         row.col(|ui| {
-                            // ui.style_mut().spacing.slider_width = 300.0;
+                            ui.style_mut().spacing.slider_width = 300.0;
 
                             if app.images.selected.is_none() {
                                 return;
@@ -135,49 +134,75 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                             let current_image = &mut app.images.images[selected_i].clone();
 
                             let response = ui.horizontal(|ui| {
-                                let mut low_drag_response = ui.add(
-                                    DragValue::new(&mut current_image.minimal_pore_size_low)
-                                        .speed(0.1)
-                                        .fixed_decimals(0),
+                                let mut slider_response = ui.add(
+                                    Slider::new(
+                                        &mut current_image.minimal_pore_size_low,
+                                        0.0..=i32::MAX as f32,
+                                    )
+                                    .max_decimals(0)
+                                    .step_by(1.0),
                                 );
+
                                 if ui.button("-").clicked() {
                                     current_image.minimal_pore_size_low -= 1.0;
-                                    low_drag_response.mark_changed();
+                                    slider_response.mark_changed();
                                 } else if ui.button("+").clicked() {
                                     current_image.minimal_pore_size_low += 1.0;
-                                    low_drag_response.mark_changed();
+                                    slider_response.mark_changed();
                                 }
 
-                                let slider_response = ui.add(
-                                    DoubleSlider::new(
-                                        &mut current_image.minimal_pore_size_low,
+                                slider_response
+                            });
+
+                            if response.inner.changed() {
+                                app.images.images[selected_i] = current_image.clone();
+                                app.reload_image(app.images.selected);
+
+                                log::info!(
+                                    "min pore size bounds: {} - {}",
+                                    current_image.minimal_pore_size_low,
+                                    current_image.minimal_pore_size_high
+                                );
+                            }
+                        });
+                    });
+
+                    body.row(30.0, |mut row| {
+                        row.col(|ui| {
+                            ui.label("Minimal Pore Size High");
+                        });
+                        row.col(|ui| {
+                            ui.style_mut().spacing.slider_width = 260.0;
+
+                            if app.images.selected.is_none() {
+                                return;
+                            }
+
+                            let selected_i = app.images.selected.unwrap_or(0);
+                            let current_image = &mut app.images.images[selected_i].clone();
+
+                            let response = ui.horizontal(|ui| {
+                                let mut slider_response = ui.add(
+                                    Slider::new(
                                         &mut current_image.minimal_pore_size_high,
                                         0.0..=i32::MAX as f32,
                                     )
-                                    .width(170.0)
-                                    .separation_distance(1.0),
+                                    .max_decimals(0)
+                                    .step_by(1.0),
                                 );
 
-                                let mut high_drag_response = ui.add(
-                                    DragValue::new(&mut current_image.minimal_pore_size_high)
-                                        .speed(0.1)
-                                        .fixed_decimals(0),
-                                );
                                 if ui.button("-").clicked() {
                                     current_image.minimal_pore_size_high -= 1.0;
-                                    high_drag_response.mark_changed();
+                                    slider_response.mark_changed();
                                 } else if ui.button("+").clicked() {
                                     current_image.minimal_pore_size_high += 1.0;
-                                    high_drag_response.mark_changed();
+                                    slider_response.mark_changed();
                                 }
 
-                                (low_drag_response, slider_response, high_drag_response)
+                                slider_response
                             });
 
-                            if response.inner.0.changed()
-                                || response.inner.1.changed()
-                                || response.inner.2.changed()
-                            {
+                            if response.inner.changed() {
                                 app.images.images[selected_i] = current_image.clone();
                                 app.reload_image(app.images.selected);
 
