@@ -1,4 +1,4 @@
-use egui::{DragValue, Slider};
+use egui::{DragValue, Slider, Spinner};
 use egui_double_slider::DoubleSlider;
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
@@ -225,7 +225,13 @@ pub fn display_sidepanel(ctx: &egui::Context, app: &mut PoreDetectionApp) {
                 if let Some(density) = app.images.images[selected_img].density {
                     ui.heading(format!("Density: {:.5}%", density));
                 } else {
-                    ui.heading("Density: -".to_string());
+                    ui.horizontal(|ui| {
+                        ui.heading("Density: -".to_string());
+
+                        if app.join_handle.is_some() {
+                            ui.add(Spinner::new());
+                        }
+                    });
                 }
             }
 
